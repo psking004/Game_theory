@@ -1,6 +1,6 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-189%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-195%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
@@ -16,6 +16,14 @@ The **Strategic Systems Engine (SSE)** is an advanced computational software eng
 
 ## Capabilities Overview
 
+- **AIVA Autonomous Agentic Operating Environment (`aiva`):**
+  * **1. Connected Accounts (Zero-Password OAuth Broker):** PKCE OAuth2 loopback authentication for GitHub and Google Workspace with auto-refresh within 300 seconds.
+  * **2. Dedicated Compute Workspaces:** Guarded scratchpad and worktree execution on PC-B with download confinement via `SandboxedWorkspaceGuard`.
+  * **3. Real Headless Browsers:** `HeadlessBrowserSupervisor` supporting parallel contexts, lightweight accessibility tree snapshots, and direct-fill password injection.
+  * **4. Zero-Leak Credential Vault:** AES-256-GCM encrypted vault with PBKDF2-HMAC-SHA256 (100,000 iterations), opaque `vault://` handles, in-process secret resolution, and automated `[REDACTED_SECRET]` masking.
+  * **5. Structured Long-Term Memory:** Biographical identity profile paired with episodic hash-chain ledger logging.
+  * **6. Proactive Background Daemon:** Asynchronous scheduler and event monitors pushing concise morning briefs (< 500 chars) as signed `TriNodeFrame` frames to Node M (Mobile) on port 8203.
+  * **7. Cryptographic Guardrails:** 3-tier autonomy gate requiring 2-of-3 threshold quorum authorization for Level 3 irreversible actions.
 - **AIVA Parent Platform Gateway & Tool Router (`sse.gateway`, `sse.aiva`):**
   * **Unified Client (`AivaStrategicIntelligenceClient`):** High-level AIVA interface for compute deadlock resolution, EVPI intent disambiguation, 2-of-3 threshold quorum authorization, and autonomous software development.
   * **Dynamic Hardware Allocation:** Live telemetry evaluation (RTX 3050 VRAM vs. Iris Xe RAM) applying Tier-1 IESDS to prune OOM risk configurations.

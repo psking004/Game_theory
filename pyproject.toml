@@ -38,13 +38,15 @@ all = [
     "rich>=13.0",
     "psutil>=5.9",
     "httpx>=0.25",
+    "cryptography>=42.0",
+    "playwright>=1.40",
 ]
 
 [project.scripts]
 sse = "sse.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sse"]
+packages = ["src/sse", "src/aiva"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

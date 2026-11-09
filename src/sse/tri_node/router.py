@@ -166,6 +166,36 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
                 return
 
+            if action in ("notify_brief", "notify"):
+                now = time.time()
+                brief_payload = action_payload if isinstance(action_payload, dict) else {"content": str(action_payload)}
+                record_data = {
+                    "decision_id": f"notify_{int(now * 1000)}",
+                    "timestamp": now,
+                    "payload": {
+                        "type": "PUSH_NOTIFICATION",
+                        "action": action,
+                        "data": brief_payload,
+                    },
+                }
+                from sse.storage.hardened_ledger import HardenedLedger
+
+                if isinstance(self.server.ledger, HardenedLedger):
+                    self.server.ledger.atomic_append_record(record_data)
+                elif hasattr(self.server.ledger, "append_record"):
+                    self.server.ledger.append_record(record_data)
+
+                self._send_json(
+                    200,
+                    {
+                        "status": "RECEIVED",
+                        "action": action,
+                        "node_id": self.server.node_id,
+                        "timestamp": now,
+                    },
+                )
+                return
+
             # Default to bimatrix game solving
             mat_dict = action_payload if isinstance(action_payload, dict) and "u1" in action_payload else payload
             u1 = mat_dict.get("u1")

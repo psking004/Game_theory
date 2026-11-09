@@ -127,3 +127,28 @@
     - Added `sse mesh inspect --target-url <URL>`, `sse mesh exec --target-url <URL> --file <PATH>`, and `sse mesh sync --target-url <URL>`.
   * Multi-Node Verification Suite: `tests/test_tri_node/test_mesh_dispatch.py` (7 tests covering frame signing, path-traversal rejection, guarded build, live HTTP roundtrip, instant offline fallback, and CLI commands).
   * Overall Test Suite: 189 passed out of 189 tests (100%), 0 ruff lint errors.
+- **Milestone 22 (AIVA Agentic Operating Environment — 7 Core Pillars of Production Systems):**
+  * **Pillar 1: Connected Accounts & OAuth Broker (`aiva.integrations.oauth_broker.OAuthBroker`):**
+    - Zero-password OAuth 2.0 PKCE flow for GitHub and Google Workspace.
+    - Ephemeral loopback callback server (`http://127.0.0.1:8765/callback`) with auto-shutdown on code arrival.
+    - Automatic token refresh triggering when `expires_at` is within 300 seconds.
+    - Stores tokens directly into the vault under opaque handles (`vault://oauth/<service>/access_token`).
+  * **Pillar 2 & 3: Dedicated Compute Workspace & Isolated Headless Browsers (`aiva.browser.controller.HeadlessBrowserSupervisor`):**
+    - Parallel isolated browser contexts with download confinement via `SandboxedWorkspaceGuard`.
+    - Lightweight accessibility tree snapshots (`get_accessibility_snapshot`) extracting roles and accessible names without giant raw DOM strings or full screenshots.
+    - Direct-fill password injection (`fill_secure_field`): retrieves secret from vault handle strictly in-process and injects into DOM inputs without exposing values to LLM chat tokens or logs.
+  * **Pillar 4: Zero-Leak Credential Vault (`aiva.security.vault.SecureCredentialVault`):**
+    - AES-256-GCM authenticated encryption with PBKDF2-HMAC-SHA256 (100,000 iterations, unique 16-byte salt).
+    - Opaque secret handles (`vault://<category>/<service>/<key>`) with in-memory resolution and memory scrubbing.
+    - Automated redaction scrubber replacing all known plaintext vault secrets with `[REDACTED_SECRET]`.
+  * **Pillar 5: Structured Long-Term Memory (`aiva.memory.profile.AivaMemoryManager`):**
+    - Biographical profile persistence linked directly with episodic hash-chain ledger logging (`HardenedLedger`).
+  * **Pillar 6: Proactive Background Daemon (`aiva.proactive.daemon.ProactiveDaemon`):**
+    - Periodic scheduler and event watchers.
+    - Morning brief generator (< 500 characters) synthesizing calendar, build health, and outstanding issues.
+    - Signed `TriNodeFrame(action="notify_brief")` push directly to Node M (Mobile) over P2P mesh port 8203.
+  * **Pillar 7: Cryptographic Guardrails (`aiva.governance.guardrails.AivaGuardrailGate`):**
+    - 3-tier autonomy classification: Level 1 (Read-Only immediate), Level 2 (Drafting/Staging audited), Level 3 (Irreversible/External).
+    - 2-of-3 threshold quorum authorization gate (`ThresholdQuorumPolicy`): freezes Level 3 execution, generates challenge, and requires 2 cryptographic signatures (e.g. PC-A + Mobile) before proceeding.
+  * **Verification Test Suite: `tests/test_aiva/test_agentic_environment.py` (6 tests covering vault encryption, DOM direct-fill, OAuth PKCE, proactive brief push, quorum approval, and long-term memory).**
+  * **Overall Test Suite: 195 passed out of 195 tests (100%), 0 ruff lint errors.**
