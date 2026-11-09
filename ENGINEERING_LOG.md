@@ -80,3 +80,16 @@
     - `MeshPayloadFirewall`: Enforces payload size limits (1 MB), content-type checks (415), schema validation, sender node authorization, and clock skew validation (60s). Integrated directly into `P2PRouter`.
   * Comprehensive Security Verification Suite: `tests/test_security/test_security_hardening.py` (10 tests covering replay attacks, quorum, path traversal, credential scrubbing, process timeouts, multi-threaded ledger concurrency, and firewall blocks).
   * Overall Test Suite: 168 passed out of 168 tests (100%), 0 ruff lint errors.
+- **Milestone 19 (Parent AIVA Orchestrator Integration & Hardened Tool Router):**
+  * Unified AIVA Client (`sse.gateway.client.AivaStrategicIntelligenceClient`):
+    - Compute deadlock resolution via live host and GPU telemetry (`resolve_compute_deadlock`), applying Tier-1 IESDS to prune OOM configurations and logging to `HardenedLedger`.
+    - Bayesian intent disambiguation via Expected Value of Perfect Information (`evaluate_intent_disambiguation`), returning `CLARIFY` with structured prompt when $\text{EVPI} > \text{clarification\_cost}$ or `EXECUTE` with optimal action.
+    - Governance clearance for destructive actions (`verify_action_clearance`) gating executions behind 2-of-3 threshold quorum.
+    - Autonomous Sub-Agent Swarm closed-loop build dispatch (`dispatch_autonomous_swarm_build`) executing the full 6-agent lifecycle and exporting to disk.
+  * AIVA Action & Tool Router (`sse.aiva.router.AivaToolRouter`):
+    - Exposes standard OpenAI/Anthropic callable tool schemas: `sse_allocate_compute`, `sse_disambiguate_intent`, `sse_verify_governance`, and `sse_build_software`.
+    - Zero-crash error handling with fallback to local air-gapped sovereign execution.
+  * Context Budget Compliance: All emitted decision payloads strictly respect character budgets ($< 350\text{ chars}$).
+  * End-to-End Gateway Integration Test Suite: `tests/test_gateway/test_aiva_integration.py` (5 tests covering deadlock pruning, EVPI calculation, quorum clearance, autonomous swarm build, and tool dispatch).
+  * System Hardening Verification Suite: `tests/test_security/test_system_hardening.py` (5 tests covering nonce replay, dual quorum, traversal defense, multi-threaded ledger concurrency, and 1 MB payload limits).
+  * Overall Test Suite: 178 passed out of 178 tests (100%), 0 ruff lint errors.

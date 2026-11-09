@@ -69,6 +69,36 @@ class PeerRateLimiter:
             self._buckets.clear()
 
 
+class EndpointRateLimiter:
+    """Sliding-window IP/node rate limiter allowing up to max_requests per window_seconds."""
+
+    def __init__(self, max_requests: int = 30, window_seconds: float = 60.0) -> None:
+        self.max_requests = int(max_requests)
+        self.window_seconds = float(window_seconds)
+        self._requests: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, peer_id: str) -> bool:
+        """Check if request from peer_id is within sliding window rate limit."""
+        now = time.time()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            timestamps = self._requests.setdefault(peer_id, [])
+            valid_ts = [ts for ts in timestamps if ts > cutoff]
+            if len(valid_ts) >= self.max_requests:
+                self._requests[peer_id] = valid_ts
+                return False
+
+            valid_ts.append(now)
+            self._requests[peer_id] = valid_ts
+            return True
+
+    def reset(self) -> None:
+        """Reset all rate limiter state."""
+        with self._lock:
+            self._requests.clear()
+
+
 class MeshPayloadFirewall:
     """Ingress security gateway validating P2P mesh packets against attacks and floods."""
 

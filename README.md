@@ -1,10 +1,11 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-168%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-178%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
 [![Security](https://img.shields.io/badge/Security-Zero--Trust%20Quorum-red.svg)]()
+[![AIVA Bridge](https://img.shields.io/badge/AIVA-Integrated-success.svg)]()
 [![Sovereign Mesh](https://img.shields.io/badge/Tri--Node-Zero--SPOF-blueviolet.svg)]()
 [![Swarm Engine](https://img.shields.io/badge/Swarm-Self--Healing-orange.svg)]()
 
@@ -14,6 +15,12 @@ The **Strategic Systems Engine (SSE)** is an advanced computational software eng
 
 ## Capabilities Overview
 
+- **AIVA Parent Platform Gateway & Tool Router (`sse.gateway`, `sse.aiva`):**
+  * **Unified Client (`AivaStrategicIntelligenceClient`):** High-level AIVA interface for compute deadlock resolution, EVPI intent disambiguation, 2-of-3 threshold quorum authorization, and autonomous software development.
+  * **Dynamic Hardware Allocation:** Live telemetry evaluation (RTX 3050 VRAM vs. Iris Xe RAM) applying Tier-1 IESDS to prune OOM risk configurations.
+  * **Bayesian EVPI Intent Disambiguation:** Calculates Bayes Risk and EVPI to ask clarifying questions only when $\text{EVPI} > \text{clarification\_cost}$, otherwise executing frictionlessly.
+  * **AIVA Tool Router (`AivaToolRouter`):** Standard OpenAI/Anthropic callable tool schemas (`sse_allocate_compute`, `sse_disambiguate_intent`, `sse_verify_governance`, `sse_build_software`) with zero-crash sovereign local fallback.
+  * **Strict Context Window Budget:** All emitted decision payloads respect character budgets ($< 350\text{ chars}$).
 - **Universal Strategic Models:** Finite normal-form, extensive-form trees, Bayesian games with incomplete information, cooperative characteristic-function (TU) games, repeated games with discounting, evolutionary population dynamics, stochastic Markov games, Stackelberg commitment models, and congestion/potential games.
 - **Zero-Trust Security & Hardening Infrastructure (`sse.security`, `sse.storage`, `sse.tri_node.firewall`):**
   * **M-of-N Cryptographic Threshold Quorum (`ThresholdQuorumPolicy`):** 2-of-3 multi-signature verification over canonical action payloads using HMAC-SHA256 with constant-time validation (`compare_digest`).

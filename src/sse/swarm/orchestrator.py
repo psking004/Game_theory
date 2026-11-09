@@ -91,6 +91,19 @@ class SwarmOrchestrationEngine:
             with contextlib.suppress(OSError):
                 shutil.rmtree(state.root_path, ignore_errors=True)
 
+    def develop_and_verify(
+        self,
+        specification: str | dict[str, Any],
+        project_name: str | None = None,
+        phase_callback: Callable[[str, int, str], None] | None = None,
+    ) -> SwarmWorkspaceState:
+        """Execute full autonomous multi-agent software engineering lifecycle (develop and verify)."""
+        return self.execute_lifecycle(
+            task_specification=specification,
+            phase_callback=phase_callback,
+            cleanup_on_finish=False,
+        )
+
     def execute_lifecycle(
         self,
         task_specification: str | dict[str, Any],

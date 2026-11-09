@@ -78,6 +78,16 @@ class SwarmWorkspaceState:
     max_iterations: int = 5
     logs: list[str] = field(default_factory=list)
 
+    @property
+    def iterations(self) -> int:
+        """Alias for iteration_count."""
+        return self.iteration_count
+
+    @property
+    def iteration(self) -> int:
+        """Singular alias for iteration_count."""
+        return self.iteration_count
+
     def log(self, message: str) -> None:
         """Append an event message to the workspace audit trail."""
         self.logs.append(message)
