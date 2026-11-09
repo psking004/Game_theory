@@ -1,8 +1,10 @@
-"""Strategic Systems Engine - Tri-Node Adversarial Arena Tournament Dispatcher.
+"""Strategic Systems Engine - Tri-Node Swarm Arena Dispatcher.
 
-Offloads heavy adversarial Monte Carlo and concurrency stress tournaments
-from Node A to Node B over the zero-hang P2P mesh, with immediate fallback
-to local execution on network partitions.
+Coordinates remote stress tournaments across the P2P mesh:
+- Packages candidate source deliverables into signed cryptographic frames.
+- Dispatches to compute worker (Node B / PC-B) over port 8202.
+- Handles automated fallback to local execution on network partition.
+- Formats tournament outcome into token-budgeted payloads (< 350 chars).
 """
 
 from __future__ import annotations
@@ -13,11 +15,76 @@ import logging
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from sse.swarm.arena import SwarmArena, TournamentSummary
+if TYPE_CHECKING:
+    from sse.config.cluster import ClusterNetworkConfig
+
+from sse.tri_node.client import TriNodeMeshClient
+from sse.tri_node.router import NodeRole
 from sse.tri_node.sovereign_core import NodeID
 
 logger = logging.getLogger("sse.tri_node.arena_dispatcher")
+
+
+class ArenaDispatcher:
+    """Dispatches adversarial stress tournaments across cluster nodes."""
+
+    def __init__(
+        self,
+        node_role: NodeRole = NodeRole.NODE_A,
+        mesh_client: TriNodeMeshClient | None = None,
+        cluster_config: ClusterNetworkConfig | None = None,
+    ) -> None:
+        self.node_role = node_role
+        if cluster_config is None:
+            from sse.config.cluster import ClusterNetworkConfig
+
+            self.cluster_config = ClusterNetworkConfig()
+        else:
+            self.cluster_config = cluster_config
+
+        self.mesh_client = mesh_client or TriNodeMeshClient(
+            current_role=self.node_role,
+            shared_secret=self.cluster_config.cluster_secret,
+        )
+
+    def dispatch_tournament(
+        self,
+        project_name: str,
+        files: dict[str, str],
+        target_node: NodeRole = NodeRole.NODE_B,
+        rounds: int = 4,
+        timeout_sec: float = 30.0,
+    ) -> dict[str, Any]:
+        """Dispatch candidate deliverable for 4-vector stress testing on target node."""
+        target_url = self.cluster_config.get_node_url(target_node)
+        target_str = target_node.value if hasattr(target_node, "value") else str(target_node)
+
+        logger.info(
+            "Dispatching arena tournament '%s' to %s (%s)...",
+            project_name,
+            target_str,
+            target_url,
+        )
+
+        res = self.mesh_client.dispatch_arena_tournament(
+            target_role=target_str,
+            target_url=target_url,
+            project_name=project_name,
+            files=files,
+            rounds=rounds,
+            timeout_sec=timeout_sec,
+        )
+
+        # Budgeted compact payload formatting (< 350 chars)
+        res["compact_payload"] = (
+            f"ARENA_DISPATCH|candidate={res.get('candidate_id')}|passed={res.get('passed_gate')}|"
+            f"elo={res.get('final_elo')}|surv={res.get('survival_rate'):.1%}|"
+            f"dispatched_to={res.get('dispatched_to')}|fallback={res.get('fallback_local')}"
+        )
+
+        return res
 
 
 class ArenaTournamentDispatcher:
@@ -27,11 +94,16 @@ class ArenaTournamentDispatcher:
         self,
         node_id: str | NodeID = NodeID.PC_A,
         peer_url: str = "http://127.0.0.1:8202",
-        local_arena: SwarmArena | None = None,
+        local_arena: Any | None = None,
     ) -> None:
         self.node_id = str(node_id.value if isinstance(node_id, NodeID) else node_id)
         self.peer_url = peer_url.rstrip("/")
-        self.local_arena = local_arena or SwarmArena()
+        if local_arena is None:
+            from sse.swarm.arena import SwarmArena
+
+            self.local_arena = SwarmArena()
+        else:
+            self.local_arena = local_arena
 
     def dispatch_tournament(
         self,
@@ -39,8 +111,10 @@ class ArenaTournamentDispatcher:
         candidate_id: str = "candidate_01",
         rounds: int = 20,
         timeout: float = 15.0,
-    ) -> TournamentSummary:
+    ) -> Any:
         """Attempt to offload tournament execution to peer node; fallback to local on failure."""
+        from sse.swarm.arena import TournamentSummary
+
         work_path = Path(workspace_dir).resolve()
 
         # 1. Package workspace files for offload
@@ -61,7 +135,7 @@ class ArenaTournamentDispatcher:
                 "files": files,
                 "sender_node_id": self.node_id,
             }
-            body = json.dumps(req_data, separators=(",", ":")).encode("utf-8")
+            body = json.dumps(req_data, separators=(",", ":")).encode()
             req = urllib.request.Request(
                 url,
                 data=body,
@@ -99,3 +173,4 @@ class ArenaTournamentDispatcher:
             candidate_id=candidate_id,
             rounds=rounds,
         )
+

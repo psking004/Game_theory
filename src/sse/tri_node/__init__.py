@@ -4,7 +4,7 @@ Autonomous, symmetric, zero-external-dependency distributed coordination
 across Node A (workstation GPU), Node B (remote node), and Node M (mobile).
 """
 
-from sse.tri_node.arena_dispatcher import ArenaTournamentDispatcher
+from sse.tri_node.arena_dispatcher import ArenaDispatcher, ArenaTournamentDispatcher
 from sse.tri_node.client import TriNodeMeshClient
 from sse.tri_node.firewall import MeshFirewallConfig, MeshPayloadFirewall, PeerRateLimiter
 from sse.tri_node.frame import TriNodeFrame
@@ -25,6 +25,7 @@ __all__ = [
     "CLUSTER_SHARED_SECRET",
     "DEFAULT_NODE_PORTS",
     "GENESIS_HASH",
+    "ArenaDispatcher",
     "ArenaTournamentDispatcher",
     "MeshActionDispatcher",
     "MeshFirewallConfig",

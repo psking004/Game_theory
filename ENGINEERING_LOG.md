@@ -202,3 +202,28 @@
   * **Test Suite Status (`tests/test_aiva/test_control_plane.py`):**
     - 5 automated headless tests passing: `test_arbitrate_compute_headless`, `test_resolve_intent_headless`, `test_build_system_headless`, `test_governed_action_quorum_headless`, and `test_zero_leak_scrubbing_headless`.
     - Overall test suite: 204 passed out of 204 tests (100% green), 0 ruff errors.
+- **Milestone 26 (Perception Voice Gateway, Mobile Quorum Signer Daemon, Distributed Swarm Arena Pipeline & Headless Secret Enrollment):**
+  * **Perception Voice Gateway (`src/aiva/perception/voice_gateway.py`):**
+    - `VoiceIntentGateway`, `VoiceIntentCandidate`, and `VoiceIntentEvaluation` implementing Bayesian Expected Value of Perfect Information (EVPI).
+    - Asymmetric domain misclassification loss matrix (destructive actions $\ge 85.0$, navigation/retrieval $\le 10.0$).
+    - Computes Bayes Risk $R(a^*) = (1 - P(a^*)) \times \text{Loss}(a^*)$ and EVPI.
+    - Low-risk queries ($R \le \text{cost}$) trigger frictionless `EXECUTE`; ambiguous destructive queries ($R > \text{cost}$) generate natural, concise TTS clarification prompts ($< 150$ characters).
+  * **Mobile Quorum Signer Daemon (`src/aiva/governance/mobile_signer.py`):**
+    - `MobileQuorumSignerDaemon` and `SignerPolicyRule` for standalone authorizer daemon on Node M (Android/Termux or iOS).
+    - Dual authorization model: Headless automated policy matching (case-insensitive action whitelist and `fnmatch` target glob patterns) + local interactive callback hooks.
+    - Computes canonical HMAC-SHA256 signatures (`HMAC(key, f"{action}:{target}:{ts:.3f}")`).
+    - Wired into `sse_standalone.py` and `src/sse/tri_node/router.py` over `/mesh/quorum/challenge` and `/mesh/quorum/approve` wire endpoints.
+  * **Distributed Swarm Arena Stress-Testing Pipeline (`src/sse/swarm/distributed_pipeline.py` & `src/sse/tri_node/arena_dispatcher.py`):**
+    - `DistributedSwarmPipeline` orchestrating candidate synthesis on Node A via `ArchitectAgent` and `BuilderAgent`, packaging into signed cryptographic frames, and dispatching to Node B over port 8202.
+    - `ArenaDispatcher` and `ArenaTournamentDispatcher`: multi-round stress evaluation against 4 adversarial vectors (50-thread concurrency thrash, boundary integer overflow, malformed bitflip tamper, latency burst).
+    - Dynamic logistic Elo calibration ($K=32$, baseline 1400.0) with $\ge 95\%$ survival rate and $\le 0.15$ regret gating.
+    - Token-budgeted compact payload formatting ($< 350$ characters).
+  * **Headless Secret Enrollment System (`src/aiva/security/enrollment.py`):**
+    - `HeadlessSecretEnrollment` and `EnrollmentManifest` enabling zero-STDIN, machine-first provisioning of encrypted credentials into `SecureCredentialVault`.
+    - Enforces non-empty values, opaque `vault://` handle key mapping, SHA-256 payload integrity check, and post-write memory scrubbing.
+    - In-memory redaction validation ensuring plaintext tokens are scrubbed with `[REDACTED_SECRET]`.
+  * **Test Suite Status (`tests/test_aiva/test_integrated_milestones.py`):**
+    - 4 comprehensive integration tests covering Voice Intent EVPI, Mobile Quorum Signer Daemon, Distributed Swarm Arena Pipeline, and Headless Secret Enrollment.
+    - Full regression test suite: 208 passed out of 208 tests (100% green), 0 ruff errors.
+    - Memory profile: Peak heap RAM 0.12 MB ($< 80.0$ MB ceiling).
+

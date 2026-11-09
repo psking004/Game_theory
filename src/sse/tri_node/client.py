@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 import urllib.error
 import urllib.request
 import uuid
@@ -212,6 +213,74 @@ class TriNodeMeshClient:
         local_res["dispatched_to"] = "LOCAL_FALLBACK"
         local_res["fallback_local"] = True
         return local_res
+
+    def dispatch_arena_tournament(
+        self,
+        target_role: str,
+        target_url: str | None,
+        project_name: str,
+        files: dict[str, str],
+        rounds: int = 4,
+        timeout_sec: float = 30.0,
+    ) -> dict[str, Any]:
+        """Dispatch candidate deliverables for 4-vector adversarial arena tournament with local fallback."""
+        payload = {
+            "project_name": project_name,
+            "candidate_id": project_name,
+            "files": files,
+            "rounds": rounds,
+            "target_role": target_role,
+        }
+
+        if target_url:
+            try:
+                res = self._send_signed_frame(
+                    target_url=target_url,
+                    action="arena_tournament",
+                    payload=payload,
+                    timeout=timeout_sec + 2.0,
+                )
+                res["dispatched_to"] = target_role
+                res["fallback_local"] = False
+                return res
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                logger.warning(
+                    "Remote arena dispatch to %s (%s) failed (%s). Falling back to local arena execution.",
+                    target_role,
+                    target_url,
+                    exc,
+                )
+
+        # Local fallback execution
+        with tempfile.TemporaryDirectory(prefix="local_arena_") as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            for rel_path, content in files.items():
+                t = tmp_path / rel_path
+                t.parent.mkdir(parents=True, exist_ok=True)
+                t.write_text(content, encoding="utf-8")
+
+            from sse.swarm.arena import SwarmArena
+
+            arena = SwarmArena(baseline_elo=1400.0)
+            summary = arena.run_tournament(tmp_path, candidate_id=project_name, rounds=rounds)
+
+            return {
+                "status": "COMPLETED",
+                "candidate_id": summary.candidate_id,
+                "rounds": summary.rounds_played,
+                "wins": summary.wins,
+                "losses": summary.losses,
+                "draws": summary.draws,
+                "survival_rate": summary.survival_rate,
+                "initial_elo": summary.initial_elo,
+                "final_elo": summary.final_elo,
+                "elo_delta": summary.elo_delta,
+                "passed_gate": summary.passed_gate,
+                "worst_case_regret": summary.worst_case_regret,
+                "compact_payload": summary.to_compact_payload(),
+                "dispatched_to": "LOCAL_FALLBACK",
+                "fallback_local": True,
+            }
 
     def sync_ledger_with_peer(
         self,

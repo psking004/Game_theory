@@ -13,9 +13,16 @@ Models the 7 core pillars of production autonomous systems:
 from aiva.browser.controller import HeadlessBrowserSupervisor, VirtualDOMSession
 from aiva.control_plane import AivaActionResponse, AivaAgentPlane
 from aiva.governance.guardrails import AivaGuardrailGate, AutonomyTier
+from aiva.governance.mobile_signer import MobileQuorumSignerDaemon, SignerPolicyRule
 from aiva.integrations.oauth_broker import OAuthBroker
 from aiva.memory.profile import AivaMemoryManager
+from aiva.perception.voice_gateway import (
+    VoiceIntentCandidate,
+    VoiceIntentEvaluation,
+    VoiceIntentGateway,
+)
 from aiva.proactive.daemon import ProactiveDaemon
+from aiva.security.enrollment import EnrollmentManifest, HeadlessSecretEnrollment
 from aiva.security.vault import SecureCredentialVault
 
 __all__ = [
@@ -24,9 +31,16 @@ __all__ = [
     "AivaGuardrailGate",
     "AivaMemoryManager",
     "AutonomyTier",
+    "EnrollmentManifest",
     "HeadlessBrowserSupervisor",
+    "HeadlessSecretEnrollment",
+    "MobileQuorumSignerDaemon",
     "OAuthBroker",
     "ProactiveDaemon",
     "SecureCredentialVault",
+    "SignerPolicyRule",
     "VirtualDOMSession",
+    "VoiceIntentCandidate",
+    "VoiceIntentEvaluation",
+    "VoiceIntentGateway",
 ]

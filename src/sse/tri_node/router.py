@@ -175,6 +175,65 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
                 return
 
+            if action == "arena_tournament":
+                try:
+                    candidate_id = str(action_payload.get("candidate_id", action_payload.get("project_name", "candidate_remote")))
+                    rounds = int(action_payload.get("rounds", 4))
+                    files = action_payload.get("files", {})
+
+                    with tempfile.TemporaryDirectory(prefix="mesh_arena_") as tmp_dir:
+                        tmp_path = Path(tmp_dir)
+                        if isinstance(files, dict):
+                            for rel_path, content in files.items():
+                                target = tmp_path / rel_path
+                                target.parent.mkdir(parents=True, exist_ok=True)
+                                target.write_text(content, encoding="utf-8")
+                        elif isinstance(files, list):
+                            for f_entry in files:
+                                p = f_entry.get("path") or f_entry.get("relative_path")
+                                c = f_entry.get("content", "")
+                                if p:
+                                    target = tmp_path / p
+                                    target.parent.mkdir(parents=True, exist_ok=True)
+                                    target.write_text(c, encoding="utf-8")
+
+                        from sse.swarm.arena import SwarmArena
+
+                        arena = SwarmArena(baseline_elo=1400.0)
+                        summary = arena.run_tournament(tmp_path, candidate_id=candidate_id, rounds=rounds)
+
+                        res_data = {
+                            "status": "COMPLETED",
+                            "candidate_id": summary.candidate_id,
+                            "rounds": summary.rounds_played,
+                            "wins": summary.wins,
+                            "losses": summary.losses,
+                            "draws": summary.draws,
+                            "survival_rate": summary.survival_rate,
+                            "initial_elo": summary.initial_elo,
+                            "final_elo": summary.final_elo,
+                            "elo_delta": summary.elo_delta,
+                            "passed_gate": summary.passed_gate,
+                            "worst_case_regret": summary.worst_case_regret,
+                            "compact_payload": summary.to_compact_payload(),
+                        }
+                        status_code = 200 if summary.passed_gate else 422
+                        self._send_json(status_code, res_data)
+                except Exception as exc:
+                    self._send_json(500, {"error": "ARENA_TOURNAMENT_FAILED", "details": str(exc)})
+                return
+
+            if action in ("quorum_challenge", "challenge"):
+                from aiva.governance.mobile_signer import MobileQuorumSignerDaemon
+
+                signer = getattr(self.server, "quorum_signer", None)
+                if signer is None:
+                    signer = MobileQuorumSignerDaemon(node_id=self.server.node_id)
+                res = signer.process_challenge(action_payload)
+                status_code = 200 if res.get("status") == "APPROVED" else 403
+                self._send_json(status_code, res)
+                return
+
             if action in ("notify_brief", "notify"):
                 now = time.time()
                 brief_payload = action_payload if isinstance(action_payload, dict) else {"content": str(action_payload)}
@@ -316,6 +375,36 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                         "node_id": self.server.node_id,
                     },
                 )
+
+        elif path == "/mesh/quorum/challenge":
+            from aiva.governance.mobile_signer import MobileQuorumSignerDaemon
+
+            signer = getattr(self.server, "quorum_signer", None)
+            if signer is None:
+                signer = MobileQuorumSignerDaemon(node_id=self.server.node_id)
+            res = signer.process_challenge(payload)
+            status_code = 200 if res.get("status") == "APPROVED" else 403
+            self._send_json(status_code, res)
+
+        elif path == "/mesh/quorum/approve":
+            action_name = payload.get("action", "")
+            target = payload.get("target", "*")
+            signature = payload.get("signature", "")
+            now = time.time()
+            record_data = {
+                "decision_id": f"quorum_appr_{int(now * 1000)}",
+                "timestamp": now,
+                "payload": {
+                    "type": "QUORUM_APPROVAL_RECEIPT",
+                    "action": action_name,
+                    "target": target,
+                    "signature": signature,
+                    "signer_node": payload.get("signer_node", "UNKNOWN"),
+                },
+            }
+            if hasattr(self.server.ledger, "append_record"):
+                self.server.ledger.append_record(record_data)
+            self._send_json(200, {"status": "APPROVAL_COMMITTED", "timestamp": now})
         else:
             self._send_json(404, {"error": "Endpoint not found"})
 

@@ -822,6 +822,31 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if action in ("quorum_challenge", "challenge"):
+                act = str(action_payload.get("action", ""))
+                tgt = str(action_payload.get("target", "*"))
+                chal = str(action_payload.get("challenge", ""))
+                ts = float(action_payload.get("timestamp", time.time()))
+                m_key = hmac.new(
+                    self.server.core.secret.encode("utf-8"),
+                    f"sse-node-key:{self.server.node_id}".encode(),
+                    hashlib.sha256,
+                ).hexdigest()
+                sig = hmac.new(m_key.encode("utf-8"), f"{act}:{tgt}:{ts:.3f}".encode(), hashlib.sha256).hexdigest()
+                self._send_json(
+                    200,
+                    {
+                        "status": "APPROVED",
+                        "signer_node": self.server.node_id,
+                        "action": act,
+                        "target": tgt,
+                        "signature": sig,
+                        "challenge": chal,
+                        "timestamp": ts,
+                    },
+                )
+                return
+
             mat_dict = action_payload if isinstance(action_payload, dict) and "u1" in action_payload else payload
             u1 = mat_dict.get("u1")
             u2 = mat_dict.get("u2")
@@ -876,6 +901,50 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     "records": [json.dumps(r, separators=(",", ":")) for r in all_records],
                 },
             )
+
+        elif path == "/mesh/quorum/challenge":
+            act = str(payload.get("action", ""))
+            tgt = str(payload.get("target", "*"))
+            chal = str(payload.get("challenge", ""))
+            ts = float(payload.get("timestamp", time.time()))
+            m_key = hmac.new(
+                self.server.core.secret.encode("utf-8"),
+                f"sse-node-key:{self.server.node_id}".encode(),
+                hashlib.sha256,
+            ).hexdigest()
+            sig = hmac.new(m_key.encode("utf-8"), f"{act}:{tgt}:{ts:.3f}".encode(), hashlib.sha256).hexdigest()
+            self._send_json(
+                200,
+                {
+                    "status": "APPROVED",
+                    "signer_node": self.server.node_id,
+                    "action": act,
+                    "target": tgt,
+                    "signature": sig,
+                    "challenge": chal,
+                    "timestamp": ts,
+                },
+            )
+
+        elif path == "/mesh/quorum/approve":
+            action_name = payload.get("action", "")
+            target = payload.get("target", "*")
+            signature = payload.get("signature", "")
+            now = time.time()
+            record_data = {
+                "decision_id": f"quorum_appr_{int(now * 1000)}",
+                "timestamp": now,
+                "payload": {
+                    "type": "QUORUM_APPROVAL_RECEIPT",
+                    "action": action_name,
+                    "target": target,
+                    "signature": signature,
+                    "signer_node": payload.get("signer_node", "UNKNOWN"),
+                },
+            }
+            if hasattr(self.server.ledger, "append_record"):
+                self.server.ledger.append_record(record_data)
+            self._send_json(200, {"status": "APPROVAL_COMMITTED", "timestamp": now})
         else:
             self._send_json(404, {"error": "Endpoint not found"})
 
