@@ -64,3 +64,19 @@
   * CLI Integration: `sse swarm run` (with Rich phase notifications and export) and `sse swarm audit`.
   * Comprehensive test suite: `tests/test_swarm/test_swarm_orchestrator.py` (7 tests covering e2e lifecycle, security detection, healing, and CLI).
   * Overall Test Suite: 158 passed out of 158 tests (100%), 0 ruff lint errors.
+- **Milestone 18 (Zero-Trust Cryptographic Hardening, Sandboxing & Mesh Firewall):**
+  * Cryptographic Threshold Quorum & Replay Shield (`sse.security.hardening`):
+    - `NonceTracker`: Sliding-window nonce validator with configurable TTL (default 300s) and automatic capacity-bounded FIFO pruning (`max_entries = 100_000`) preventing memory exhaustion attacks.
+    - `ThresholdQuorumPolicy`: 2-of-3 M-of-N threshold quorum gate verifying HMAC-SHA256 signatures over canonical messages with constant-time equality checks (`compare_digest`).
+  * Sub-Agent Workspace Sandbox & Privilege Scrubber (`sse.swarm.security_sandbox`):
+    - `SandboxedWorkspaceGuard`: Strict directory confinement throwing `PermissionError` on path traversal escapes (`../../`, absolute roots, symlinks).
+    - `get_sanitized_environment`: Privilege and credential scrubber stripping sensitive API keys, secrets, tokens, and passwords while injecting `PYTHONDONTWRITEBYTECODE=1`.
+    - `HardenedProcessExecutor`: Subprocess runner with hard timeouts, max output buffer caps (`max_output_bytes = 100_000`), and sanitized runtime environments.
+  * Atomic Process-Safe File-Locked Ledger (`sse.storage.hardened_ledger`):
+    - `AdvisoryFileLock`: Cross-platform advisory locking (`msvcrt` on Windows, `fcntl` on POSIX).
+    - `HardenedLedger`: Atomic append with lock acquisition before seek-to-end, physical disk sync (`os.fsync`), and 0o600 permissions. Eliminates race conditions and hash-chain splits under concurrent multi-process access.
+  * P2P Ingress Rate Limiter & Firewall (`sse.tri_node.firewall`):
+    - `PeerRateLimiter`: Token bucket rate limiter preventing network floods.
+    - `MeshPayloadFirewall`: Enforces payload size limits (1 MB), content-type checks (415), schema validation, sender node authorization, and clock skew validation (60s). Integrated directly into `P2PRouter`.
+  * Comprehensive Security Verification Suite: `tests/test_security/test_security_hardening.py` (10 tests covering replay attacks, quorum, path traversal, credential scrubbing, process timeouts, multi-threaded ledger concurrency, and firewall blocks).
+  * Overall Test Suite: 168 passed out of 168 tests (100%), 0 ruff lint errors.

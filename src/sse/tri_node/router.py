@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from sse.tri_node.firewall import MeshPayloadFirewall
 from sse.tri_node.ledger import SovereignLedger
 from sse.tri_node.sovereign_core import (
     CLUSTER_SHARED_SECRET,
@@ -84,13 +85,24 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         """Route POST requests for mutual compute dispatch and ledger synchronization."""
         path = self.path.split("?")[0]
         content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
 
-        try:
-            payload = json.loads(body.decode("utf-8")) if body else {}
-        except json.JSONDecodeError:
-            self._send_json(400, {"error": "Invalid JSON payload"})
+        # Enforce header and size validation via firewall
+        valid_hdr, err_hdr = self.server.firewall.validate_headers(self.headers, content_length)
+        if not valid_hdr:
+            status_code = 413 if "PAYLOAD_TOO_LARGE" in err_hdr else 415
+            self._send_json(status_code, {"error": err_hdr})
             return
+
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        client_ip = self.client_address[0] if hasattr(self, "client_address") else "127.0.0.1"
+
+        valid_payload, payload, reason = self.server.firewall.validate_payload(body, peer_ip=client_ip)
+        if not valid_payload:
+            status_code = 429 if "RATE_LIMIT" in reason else 400
+            self._send_json(status_code, {"error": reason})
+            return
+
+        payload = payload or {}
 
         if path == "/mesh/dispatch":
             u1 = payload.get("u1")
@@ -157,11 +169,13 @@ class MeshServer(ThreadingHTTPServer):
         mode: str,
         core: SovereignDecisionCore,
         ledger: SovereignLedger,
+        firewall: MeshPayloadFirewall | None = None,
     ) -> None:
         self.node_id = node_id
         self.mode = mode
         self.core = core
         self.ledger = ledger
+        self.firewall = firewall or MeshPayloadFirewall()
         self.daemon_threads = True
         super().__init__(server_address, RequestHandlerClass)
 
@@ -176,6 +190,7 @@ class P2PRouter:
         mode: str | OperationalMode = OperationalMode.SOLO,
         ledger_path: str | Path | None = None,
         secret: str = CLUSTER_SHARED_SECRET,
+        firewall: MeshPayloadFirewall | None = None,
     ) -> None:
         self.node_id = str(node_id.value if isinstance(node_id, NodeID) else node_id)
         self.mode = str(mode.value if isinstance(mode, OperationalMode) else mode)
@@ -183,7 +198,13 @@ class P2PRouter:
         self.secret = secret
 
         self.core = SovereignDecisionCore(node_id=self.node_id, mode=self.mode, secret=self.secret)
-        self.ledger = SovereignLedger(node_id=self.node_id, ledger_path=ledger_path)
+        try:
+            from sse.storage.hardened_ledger import HardenedLedger
+
+            self.ledger: SovereignLedger = HardenedLedger(node_id=self.node_id, ledger_path=ledger_path)
+        except Exception:
+            self.ledger = SovereignLedger(node_id=self.node_id, ledger_path=ledger_path)
+        self.firewall = firewall or MeshPayloadFirewall()
         self._server: MeshServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -197,6 +218,7 @@ class P2PRouter:
             mode=self.mode,
             core=self.core,
             ledger=self.ledger,
+            firewall=self.firewall,
         )
 
         if background:

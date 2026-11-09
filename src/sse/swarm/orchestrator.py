@@ -22,6 +22,7 @@ from sse.swarm.agents.healer import HealerAgent
 from sse.swarm.agents.red_team import RedTeamAgent
 from sse.swarm.agents.runtime import RuntimeSupervisorAgent
 from sse.swarm.contracts import SwarmWorkspaceState, TaskStatus
+from sse.swarm.security_sandbox import SandboxedWorkspaceGuard
 
 
 class SwarmOrchestrationEngine:
@@ -66,14 +67,10 @@ class SwarmOrchestrationEngine:
         )
 
     def flush_files_to_disk(self, state: SwarmWorkspaceState) -> None:
-        """Write in-memory file artifacts to the physical workspace directory."""
+        """Write in-memory file artifacts to the physical workspace directory with path confinement."""
+        guard = SandboxedWorkspaceGuard(state.root_path)
         for rel_path, artifact in state.files.items():
-            full_path = state.root_path / rel_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_text(artifact.content, encoding="utf-8")
-            if artifact.executable and hasattr(full_path, "chmod"):
-                with contextlib.suppress(OSError):
-                    full_path.chmod(0o755)
+            guard.safe_write(rel_path, artifact.content, executable=artifact.executable)
 
     def export_workspace(self, state: SwarmWorkspaceState, destination_dir: Path | str) -> Path:
         """Export completed workspace artifacts to designated destination directory."""

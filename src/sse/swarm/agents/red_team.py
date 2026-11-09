@@ -134,3 +134,4 @@ if __name__ == "__main__":
 
         state.add_file("tests/test_adversarial.py", adv_test_py)
         state.log(f"[{self.agent_id}] Injected 'tests/test_adversarial.py' into workspace.")
+

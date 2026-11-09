@@ -1,9 +1,10 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-158%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-168%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
+[![Security](https://img.shields.io/badge/Security-Zero--Trust%20Quorum-red.svg)]()
 [![Sovereign Mesh](https://img.shields.io/badge/Tri--Node-Zero--SPOF-blueviolet.svg)]()
 [![Swarm Engine](https://img.shields.io/badge/Swarm-Self--Healing-orange.svg)]()
 
@@ -14,6 +15,12 @@ The **Strategic Systems Engine (SSE)** is an advanced computational software eng
 ## Capabilities Overview
 
 - **Universal Strategic Models:** Finite normal-form, extensive-form trees, Bayesian games with incomplete information, cooperative characteristic-function (TU) games, repeated games with discounting, evolutionary population dynamics, stochastic Markov games, Stackelberg commitment models, and congestion/potential games.
+- **Zero-Trust Security & Hardening Infrastructure (`sse.security`, `sse.storage`, `sse.tri_node.firewall`):**
+  * **M-of-N Cryptographic Threshold Quorum (`ThresholdQuorumPolicy`):** 2-of-3 multi-signature verification over canonical action payloads using HMAC-SHA256 with constant-time validation (`compare_digest`).
+  * **Sliding-Window Nonce Replay Shield (`NonceTracker`):** Bounded TTL window validation with automatic $O(1)$ capacity pruning to eliminate replay attacks and memory exhaustion.
+  * **Sandbox Confinement & Privilege Scrubber (`SandboxedWorkspaceGuard`):** Strict directory path containment throwing `PermissionError` on traversal exploits (`../../`, absolute roots, symlinks); scrubs host credentials and enforces `PYTHONDONTWRITEBYTECODE=1`.
+  * **Atomic Process-Safe File-Locked Ledger (`HardenedLedger`):** Cross-platform advisory locking (`msvcrt` / `fcntl`) with `os.fsync` to eliminate dirty reads and hash-chain forks under concurrent multi-process access.
+  * **P2P Ingress Firewall & Rate Limiter (`MeshPayloadFirewall`):** Token bucket rate limiting, request size bounds, strict JSON schema validation, and clock skew guards.
 - **Autonomous Sub-Agent Swarm Orchestration Engine (`sse.swarm`):**
   * **Six Functional Sub-Agents:** Architect, Builder, Runtime Supervisor, Security Auditor, Adversarial Red Team, and Automated Healer.
   * **Closed-Loop Convergence Loop:** Generates zero-mock, syntactically valid code in sandboxed workspaces, runs subprocess tests, performs static security analysis (OWASP Top 10, secrets, SQL injection, RLS), and iteratively heals failures until tests pass with zero high/critical vulnerabilities.
