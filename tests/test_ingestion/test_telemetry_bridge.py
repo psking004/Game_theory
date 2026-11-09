@@ -111,3 +111,4 @@ def test_evaluate_live_allocation_local_preferred_when_vram_sufficient() -> None
     assert res["oom_risk"] == 0.0
     assert res["target"] == "LOCAL_PC_A"
     assert res["utilities"]["LOCAL_PC_A"] > res["utilities"]["DISTRIBUTED"]
+
