@@ -720,6 +720,69 @@ def domain_run_cmd(
     console.print(f"[bold dim]Compact Verdict Payload:[/bold dim] {payload}")
 
 
+@app.command("telemetry")
+def telemetry_cmd(
+    format_type: str = typer.Option("table", "--format", "-f", help="Output format: table or json"),
+) -> None:
+    """Query and display live host and accelerator telemetry on PC-A."""
+    from sse.ingestion.telemetry_bridge import TelemetryBridge
+
+    bridge = TelemetryBridge(node_id="PC-A", device_idx=0)
+    snap = bridge.get_local_telemetry()
+
+    if format_type.lower() == "json":
+        data = {
+            "node_id": snap.node_id,
+            "cpu_percent": snap.cpu_percent,
+            "ram_used_gb": snap.ram_used_gb,
+            "ram_total_gb": snap.ram_total_gb,
+            "disk_free_gb": snap.disk_free_gb,
+            "disk_total_gb": snap.disk_total_gb,
+            "has_gpu": snap.has_gpu,
+            "gpu_name": snap.gpu_name,
+            "vram_used_gb": snap.vram_used_gb,
+            "vram_total_gb": snap.vram_total_gb,
+            "vram_available_gb": snap.vram_available_gb,
+            "timestamp": snap.timestamp,
+        }
+        print(json.dumps(data, indent=2))
+        return
+
+    table = Table(title="[bold cyan]Live Node Telemetry (PC-A)[/bold cyan]", border_style="cyan")
+    table.add_column("Metric", style="bold white")
+    table.add_column("Value", style="green")
+
+    table.add_row("Node ID", snap.node_id)
+    table.add_row("CPU Utilization", f"{snap.cpu_percent:.1f}%")
+    table.add_row("RAM Memory", f"{snap.ram_used_gb:.2f} GB / {snap.ram_total_gb:.2f} GB")
+    table.add_row("Disk Space", f"{snap.disk_free_gb:.1f} GB free / {snap.disk_total_gb:.1f} GB total")
+    table.add_row("GPU Present", "Yes" if snap.has_gpu else "No")
+    table.add_row("GPU Model", snap.gpu_name)
+    table.add_row(
+        "VRAM Memory",
+        f"{snap.vram_used_gb:.2f} GB / {snap.vram_total_gb:.2f} GB (Available: {snap.vram_available_gb:.2f} GB)",
+    )
+    table.add_row("Timestamp", f"{snap.timestamp:.3f}")
+
+    console.print(table)
+
+
+worker_app = typer.Typer(name="worker", help="Manage PC-B distributed execution worker.", no_args_is_help=True)
+app.add_typer(worker_app, name="worker")
+
+
+@worker_app.command("run")
+def worker_run_cmd(
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host address to bind to"),
+    port: int = typer.Option(8220, "--port", "-p", help="Port to listen on"),
+) -> None:
+    """Launch the PC-B distributed execution worker service."""
+    from sse.distributed.worker_service import run_worker
+
+    console.print(f"[bold green]Starting PC-B Distributed Worker on {host}:{port}...[/bold green]")
+    run_worker(host=host, port=port)
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint function returning POSIX exit code."""
     try:

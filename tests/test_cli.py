@@ -109,3 +109,18 @@ def test_cli_simulate_streamed_monte_carlo() -> None:
     assert "Monte Carlo Interaction Summary" in result.output
     assert "Mean Stage Payoff" in result.output
     assert "Value-at-Risk" in result.output
+
+
+def test_cli_telemetry() -> None:
+    """Verifies `sse telemetry` outputs both table and JSON metrics."""
+    res_table = runner.invoke(app, ["telemetry"])
+    assert res_table.exit_code == 0
+    assert "Live Node Telemetry" in res_table.output
+    assert "CPU Utilization" in res_table.output
+
+    res_json = runner.invoke(app, ["telemetry", "--format", "json"])
+    assert res_json.exit_code == 0
+    data = json.loads(res_json.output.strip())
+    assert data["node_id"] == "PC-A"
+    assert "ram_used_gb" in data
+    assert "vram_available_gb" in data

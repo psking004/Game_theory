@@ -15,6 +15,13 @@ from sse.ingestion.payoff_formulator import (
     RiskPreferences,
 )
 from sse.ingestion.reconciler import ObservationReconciler
+from sse.ingestion.telemetry_bridge import (
+    NodeTelemetry,
+    TelemetryBridge,
+    TelemetryContext,
+    query_gpu_telemetry,
+    query_host_telemetry,
+)
 from sse.ingestion.validator import ObservationValidator
 
 __all__ = [
@@ -23,8 +30,13 @@ __all__ = [
     "ContinuousPayoffFormulator",
     "DiscretizationScheme",
     "MatrixCompressor",
+    "NodeTelemetry",
     "ObservationReconciler",
     "ObservationValidator",
     "RiskPreferences",
+    "TelemetryBridge",
+    "TelemetryContext",
+    "query_gpu_telemetry",
+    "query_host_telemetry",
 ]
 

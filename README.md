@@ -1,6 +1,6 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-133%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-144%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
@@ -95,6 +95,13 @@ sse solve examples/matching_pennies.json --method exact
 
 # Run streamed O(1)-memory Monte Carlo simulations
 sse simulate examples/prisoners_dilemma.json --rounds 1000 --policy tit_for_tat
+
+# Query live hardware & accelerator telemetry (CPU, RAM, Disk, NVML VRAM on PC-A)
+sse telemetry
+sse telemetry --format json
+
+# Launch the PC-B distributed execution worker service
+sse worker run --host 0.0.0.0 --port 8220
 ```
 
 ---
