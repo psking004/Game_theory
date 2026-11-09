@@ -97,3 +97,4 @@ Under replicator dynamics $\dot{x}_i = x_i [u(e_i, x) - \bar{u}]$, policy $A$ is
 * **Resident: Adaptive Defender, Mutant: Greedy**
   * Against the Adaptive Defender resident population, Greedy achieves $836.40$, while Adaptive Defender achieves $1442.85$.
   * Invasion fitness barrier: $\Delta u = +606.45$. The Adaptive Defender forms an uninvadable evolutionary barrier.
+

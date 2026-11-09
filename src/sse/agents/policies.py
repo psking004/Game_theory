@@ -210,3 +210,104 @@ class AdaptiveReciprocalDefender(StrategicPolicy):
 
         # Cooperative posture
         return self.cooperate_action
+
+
+class AlwaysDefectPolicy(StrategicPolicy):
+    """Always defects unconditionally."""
+
+    def __init__(self, name: str = "AlwaysDefect", defect_action: int = 1) -> None:
+        super().__init__(name)
+        self.defect_action = defect_action
+
+    def select_action(
+        self,
+        round_idx: int,
+        own_history: list[int],
+        opponent_history: list[int],
+        payoff_matrix: np.ndarray,
+        rng: np.random.Generator,
+    ) -> int:
+        return self.defect_action
+
+
+class AlwaysCooperatePolicy(StrategicPolicy):
+    """Always cooperates unconditionally."""
+
+    def __init__(self, name: str = "AlwaysCooperate", cooperate_action: int = 0) -> None:
+        super().__init__(name)
+        self.cooperate_action = cooperate_action
+
+    def select_action(
+        self,
+        round_idx: int,
+        own_history: list[int],
+        opponent_history: list[int],
+        payoff_matrix: np.ndarray,
+        rng: np.random.Generator,
+    ) -> int:
+        return self.cooperate_action
+
+
+class WinStayLoseShiftPolicy(StrategicPolicy):
+    """Win-Stay, Lose-Shift (WSLS / Pavlov).
+
+    Cooperates initially. Repeats previous choice if payoff was satisfactory (win),
+    otherwise shifts to alternative action (lose).
+    """
+
+    def __init__(
+        self,
+        name: str = "WinStayLoseShift",
+        cooperate_action: int = 0,
+        defect_action: int = 1,
+        aspiration_level: float = 3.0,
+    ) -> None:
+        super().__init__(name)
+        self.cooperate_action = cooperate_action
+        self.defect_action = defect_action
+        self.aspiration_level = aspiration_level
+
+    def select_action(
+        self,
+        round_idx: int,
+        own_history: list[int],
+        opponent_history: list[int],
+        payoff_matrix: np.ndarray,
+        rng: np.random.Generator,
+    ) -> int:
+        if round_idx == 0:
+            return self.cooperate_action
+
+        prev_own = own_history[-1]
+        prev_opp = opponent_history[-1]
+
+        # Determine received payoff in previous round
+        if payoff_matrix.ndim == 3:
+            prev_payoff = float(payoff_matrix[prev_own, prev_opp, 0])
+        else:
+            prev_payoff = float(payoff_matrix[prev_own, prev_opp])
+
+        if prev_payoff >= self.aspiration_level:
+            return prev_own  # Win -> Stay
+        # Lose -> Shift
+        return self.defect_action if prev_own == self.cooperate_action else self.cooperate_action
+
+
+class RandomPolicy(StrategicPolicy):
+    """Chooses uniformly at random among available actions."""
+
+    def __init__(self, name: str = "Random", num_actions: int = 2) -> None:
+        super().__init__(name)
+        self.num_actions = num_actions
+
+    def select_action(
+        self,
+        round_idx: int,
+        own_history: list[int],
+        opponent_history: list[int],
+        payoff_matrix: np.ndarray,
+        rng: np.random.Generator,
+    ) -> int:
+        n = payoff_matrix.shape[0] if payoff_matrix.ndim >= 2 else self.num_actions
+        return int(rng.integers(0, n))
+
