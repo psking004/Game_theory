@@ -1,10 +1,11 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-151%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-158%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
 [![Sovereign Mesh](https://img.shields.io/badge/Tri--Node-Zero--SPOF-blueviolet.svg)]()
+[![Swarm Engine](https://img.shields.io/badge/Swarm-Self--Healing-orange.svg)]()
 
 The **Strategic Systems Engine (SSE)** is an advanced computational software engine for formal mathematical game theory, equilibrium solving, dynamic simulation, multi-agent reinforcement learning, and multi-domain strategic modeling.
 
@@ -13,6 +14,15 @@ The **Strategic Systems Engine (SSE)** is an advanced computational software eng
 ## Capabilities Overview
 
 - **Universal Strategic Models:** Finite normal-form, extensive-form trees, Bayesian games with incomplete information, cooperative characteristic-function (TU) games, repeated games with discounting, evolutionary population dynamics, stochastic Markov games, Stackelberg commitment models, and congestion/potential games.
+- **Autonomous Sub-Agent Swarm Orchestration Engine (`sse.swarm`):**
+  * **Six Functional Sub-Agents:** Architect, Builder, Runtime Supervisor, Security Auditor, Adversarial Red Team, and Automated Healer.
+  * **Closed-Loop Convergence Loop:** Generates zero-mock, syntactically valid code in sandboxed workspaces, runs subprocess tests, performs static security analysis (OWASP Top 10, secrets, SQL injection, RLS), and iteratively heals failures until tests pass with zero high/critical vulnerabilities.
+- **Sovereign Tri-Node Mesh Architecture (`sse.tri_node`):**
+  * Zero-SPOF symmetric architecture across Node A (RTX 3050 GPU), Node B (Intel Iris Xe), and Node M (Mobile Termux).
+  * Pure-Python multi-tier decision cascade (IESDS $\to$ Stackelberg $\to$ Savage Minimax Regret).
+  * Air-gapped append-only JSONL hash ledger with cryptographic tamper detection and eventual-consistency sync.
+  * Zero-hang offline-first P2P router with instant local fallback.
+  * Standalone single-file executable `sse_standalone.py` requiring zero third-party packages.
 - **Exact & Approximate Equilibrium Solvers:**
   1. `support_enumeration`: Exhaustive support enumeration across dimension pairs for all isolated and component mixed Nash equilibria.
   2. `lemke_howson`: Linear Complementarity Problem (LCP) pivoting algorithm traversing extreme points to find mixed equilibria in bimatrix games.
@@ -108,6 +118,10 @@ sse worker run --host 0.0.0.0 --port 8220
 sse node solve --node-id PC_A --solo
 sse node run --role PC_B --port 8202
 sse node sync --peer-url http://192.168.1.50:8202 --node-id PC_A
+
+# Autonomous Sub-Agent Swarm Deliverable Pipeline
+sse swarm run --task "Build token bucket rate limiter" --output-dir ./deliverable
+sse swarm audit --target-dir ./deliverable
 
 # Standalone single-file zero-dependency execution (Mobile / Termux / Server)
 python sse_standalone.py doctor

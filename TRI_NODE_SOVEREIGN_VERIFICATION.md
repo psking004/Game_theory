@@ -166,3 +166,4 @@ sse node run --role PC_B --port 8202
 # 4. Synchronize ledger from Node A to Node B
 sse node sync --peer-url http://192.168.1.50:8202 --node-id PC_A
 ```
+

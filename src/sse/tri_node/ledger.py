@@ -70,7 +70,7 @@ class SovereignLedger:
     ) -> dict[str, Any]:
         """Append a sovereign decision verdict to the cryptographic ledger."""
         prev_hash = self.get_latest_hash()
-        now = time.time()
+        now = verdict.timestamp if verdict.timestamp > 0.0 else time.time()
 
         payload = {
             "action_idx": verdict.action_idx,
@@ -216,3 +216,4 @@ class SovereignLedger:
 
         os.replace(temp_name, self.ledger_path)
         return len(incoming_records)
+

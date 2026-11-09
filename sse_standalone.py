@@ -63,6 +63,7 @@ class SovereignDecisionVerdict:
     grant_token: str
     record_hash_16: str
     mode: str
+    timestamp: float = 0.0
 
     def to_compact_payload(self) -> str:
         """Serialize into context-budgeted compact JSON (< 350 characters)."""
@@ -197,12 +198,12 @@ class SovereignDecisionCore:
             node_id=self.node_id,
             decision_id=dec_id,
             action_idx=chosen_idx,
-            timestamp=now,
+            timestamp=round(now, 3),
             prev_hash=prev_hash,
             secret=self.secret,
         )
 
-        hash_payload = f"{now:.3f}:{self.node_id}:{dec_id}:{chosen_idx}:{grant_token}:{prev_hash}"
+        hash_payload = f"{round(now, 3):.3f}:{self.node_id}:{dec_id}:{chosen_idx}:{grant_token}:{prev_hash}"
         record_hash_16 = hashlib.sha256(hash_payload.encode()).hexdigest()[:16]
 
         return SovereignDecisionVerdict(
@@ -216,6 +217,7 @@ class SovereignDecisionCore:
             grant_token=grant_token,
             record_hash_16=record_hash_16,
             mode=self.mode,
+            timestamp=round(now, 3),
         )
 
     def _solve_iesds(
@@ -353,7 +355,7 @@ class SovereignLedger:
     ) -> dict[str, Any]:
         """Append a sovereign decision verdict to the cryptographic ledger."""
         prev_hash = self.get_latest_hash()
-        now = time.time()
+        now = verdict.timestamp if verdict.timestamp > 0.0 else time.time()
 
         payload = {
             "action_idx": verdict.action_idx,

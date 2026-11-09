@@ -46,3 +46,21 @@
   * Client Dispatcher (`client.py`): `RemoteWorkerClient` on PC-A with synchronous and asynchronous dispatch.
   * CLI Extensions: `sse telemetry` (table & JSON modes) and `sse worker run`.
   * Test Suite Status: 144 passed out of 144 tests (100%), 0 ruff lint errors.
+- **Milestone 16 (Sovereign Tri-Node Mesh & Standalone Runtime):**
+  * Sovereign Core (`sovereign_core.py`): Pure-Python multi-tier decision cascade (Tier 1 IESDS, Tier 2 Strong Stackelberg, Tier 3 Savage Minimax Regret). Zero external library dependency.
+  * Append-Only Hash Ledger (`ledger.py`): Contiguous JSONL hash chain rooted in genesis `"0"*64`, cryptographic tamper detection, and resilient eventual-consistency reconciliation.
+  * Offline-First P2P Router (`router.py`): Lightweight HTTP router with aggressive timeout and zero-hang instant local fallback on network partition (< 90 ms).
+  * Single-File Standalone Executable (`sse_standalone.py`): Completely self-contained script with standard-library-only `doctor` diagnostic and `solve` CLI.
+  * Invariant verification report: `TRI_NODE_SOVEREIGN_VERIFICATION.md` (6 tri-node integration tests passing, 151 total).
+- **Milestone 17 (Autonomous Sub-Agent Swarm Orchestration Engine):**
+  * Six Functional Sub-Agents (`sse.swarm.agents`):
+    - `ArchitectAgent`: Functional specification deconstruction, component specifications, and test contracts.
+    - `BuilderAgent`: Zero-mock, production-grade source code, configuration, and runner synthesis.
+    - `RuntimeSupervisorAgent`: Subprocess isolation, execution timeouts, process killing, and stdout/stderr capture without hangs.
+    - `SecurityAuditorAgent`: Static application security testing (SAST) for secrets (SEC-001), SQL injection (SEC-002), dangerous sinks (SEC-003), and missing RLS (SEC-004).
+    - `RedTeamAgent`: Domain-tailored adversarial test synthesis (concurrency stress, malformed inputs, bit-flip tampering).
+    - `HealerAgent`: Automated remediation applying targeted source patches for vulnerability findings and test failures.
+  * Swarm Orchestration Engine (`orchestrator.py`): Sandboxed workspace lifecycle and closed-loop convergence loop.
+  * CLI Integration: `sse swarm run` (with Rich phase notifications and export) and `sse swarm audit`.
+  * Comprehensive test suite: `tests/test_swarm/test_swarm_orchestrator.py` (7 tests covering e2e lifecycle, security detection, healing, and CLI).
+  * Overall Test Suite: 158 passed out of 158 tests (100%), 0 ruff lint errors.

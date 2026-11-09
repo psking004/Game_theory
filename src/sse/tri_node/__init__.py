@@ -30,3 +30,4 @@ __all__ = [
     "generate_sovereign_grant",
     "verify_sovereign_grant",
 ]
+

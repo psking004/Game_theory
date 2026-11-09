@@ -324,3 +324,4 @@ class P2PRouter:
             "peer_url": peer_url,
             "latest_hash": self.ledger.get_latest_hash(),
         }
+

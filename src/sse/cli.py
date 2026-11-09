@@ -911,6 +911,82 @@ def node_sync_cmd(
         console.print(f"[bold red]Sync warning:[/bold red] Peer status {res.get('status')} ({res.get('error', '')})")
 
 
+swarm_app = typer.Typer(
+    name="swarm",
+    help="Autonomous Sub-Agent Swarm Orchestration Engine commands.",
+    no_args_is_help=True,
+)
+app.add_typer(swarm_app, name="swarm")
+
+
+@swarm_app.command("run")
+def swarm_run_cmd(
+    task: str = typer.Option(..., "--task", "-t", help="Functional specification or task description"),
+    output_dir: str = typer.Option("./swarm_deliverable", "--output-dir", "-o", help="Target directory to export deliverables"),
+    max_iter: int = typer.Option(5, "--max-iterations", "-m", help="Maximum convergence iterations"),
+) -> None:
+    """Execute autonomous multi-agent swarm pipeline to build, test, audit, and patch software."""
+    from sse.swarm.contracts import TaskStatus
+    from sse.swarm.orchestrator import SwarmOrchestrationEngine
+
+    console.print(Panel.fit(f"[bold cyan]SSE Autonomous Sub-Agent Swarm Engine[/bold cyan]\n[white]Task: {task}[/white]"))
+
+    def cli_phase_callback(phase: str, iter_count: int, msg: str) -> None:
+        color_map = {
+            "ARCHITECT": "cyan",
+            "BUILDER": "blue",
+            "RED_TEAM": "magenta",
+            "RUNTIME": "yellow",
+            "AUDITOR": "red",
+            "HEALER": "green",
+            "CONVERGED": "bold green",
+            "FAILED": "bold red",
+        }
+        color = color_map.get(phase, "white")
+        console.print(f"[{color}][{phase}][/] {msg}")
+
+    engine = SwarmOrchestrationEngine(max_iterations=max_iter)
+    state = engine.execute_lifecycle(task_specification=task, phase_callback=cli_phase_callback)
+
+    if state.status == TaskStatus.COMPLETED:
+        dest_path = engine.export_workspace(state, output_dir)
+        console.print(f"[bold green]Swarm convergence achieved![/] Artifacts exported to: [cyan]{dest_path}[/]")
+    else:
+        console.print(f"[bold red]Swarm convergence failed[/] after {state.iteration_count} iterations.")
+        raise typer.Exit(code=1)
+
+
+@swarm_app.command("audit")
+def swarm_audit_cmd(
+    target_dir: str = typer.Option(".", "--target-dir", "-d", help="Directory path to audit for security vulnerabilities"),
+) -> None:
+    """Run standalone static security audit on target directory."""
+    from sse.swarm.agents.auditor import SecurityAuditorAgent
+    from sse.swarm.contracts import VulnerabilitySeverity
+
+    auditor = SecurityAuditorAgent()
+    target_path = Path(target_dir).resolve()
+    console.print(f"[bold cyan]Scanning directory for security vulnerabilities:[/] [white]{target_path}[/]")
+
+    findings = auditor.audit_directory(target_path)
+    if not findings:
+        console.print("[bold green]Zero vulnerabilities detected! All security invariants satisfied.[/]")
+        return
+
+    table = Table(title=f"Security Audit Report ({len(findings)} Findings)", border_style="red")
+    table.add_column("Rule ID", style="bold yellow")
+    table.add_column("Severity", style="bold red")
+    table.add_column("File", style="cyan")
+    table.add_column("Line", style="white")
+    table.add_column("Description", style="white")
+
+    for f in findings:
+        sev_color = "bold red" if f.severity in (VulnerabilitySeverity.CRITICAL, VulnerabilitySeverity.HIGH) else "yellow"
+        table.add_row(f.rule_id, f"[{sev_color}]{f.severity.value}[/]", f.file_path, str(f.line_number), f.description)
+
+    console.print(table)
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint function returning POSIX exit code."""
     try:
