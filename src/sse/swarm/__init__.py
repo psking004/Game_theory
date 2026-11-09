@@ -5,6 +5,7 @@ Auditor, Red Team, Healer) to design, build, test, audit, and patch software
 deliverables from scratch within sandboxed workspaces.
 """
 
+from sse.swarm.arena import ArenaOutcome, SwarmArena, TournamentSummary
 from sse.swarm.contracts import (
     ExecutionResult,
     SwarmFileArtifact,
@@ -19,15 +20,20 @@ from sse.swarm.security_sandbox import (
     SandboxedWorkspaceGuard,
     get_sanitized_environment,
 )
+from sse.swarm.worktree_sandbox import GitWorktreeSandbox
 
 __all__ = [
+    "ArenaOutcome",
     "ExecutionResult",
+    "GitWorktreeSandbox",
     "HardenedProcessExecutor",
     "SandboxedWorkspaceGuard",
+    "SwarmArena",
     "SwarmFileArtifact",
     "SwarmOrchestrationEngine",
     "SwarmWorkspaceState",
     "TaskStatus",
+    "TournamentSummary",
     "VulnerabilityFinding",
     "VulnerabilitySeverity",
     "get_sanitized_environment",

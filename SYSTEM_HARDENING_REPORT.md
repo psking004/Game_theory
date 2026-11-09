@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-09  
 **Platform Version:** 0.1.0  
-**Verification Status:** 178 / 178 Tests Passing (100%)  
+**Verification Status:** 182 / 182 Tests Passing (100%)  
 **Lint / Quality:** Ruff 0 Errors / 0 Warnings  
 
 ---
@@ -77,16 +77,18 @@ The hardening initiative protects SSE, the Tri-Node Sovereign Mesh (`PC-A`, `PC-
 
 | Test Suite File | Test Count | Status | Invariants Verified |
 |:---|:---:|:---:|:---|
+| `tests/test_swarm/test_arena_swarm.py` | 4 | **PASSED** | Git worktree checkpointing & rollback, Elo calibration, survival gating, Tri-Node offload |
 | `tests/test_gateway/test_aiva_integration.py` | 5 | **PASSED** | Compute deadlock OOM pruning, EVPI disambiguation, quorum clearance, autonomous swarm build, tool router dispatch |
 | `tests/test_security/test_system_hardening.py` | 5 | **PASSED** | Nonce replay rejection, dual quorum approval, traversal defense, multi-threaded ledger locking, rate limit caps |
 | `tests/test_security/test_security_hardening.py` | 10 | **PASSED** | Window TTL, capacity pruning, tamper detection, privilege scrubber, buffer truncation, P2P firewall HTTP errors |
 | `tests/test_swarm/test_swarm_orchestrator.py` | 7 | **PASSED** | Full 6-agent lifecycle, SAST security audit (SEC-001..004), automated patching, concurrency adversarial tests |
 | `tests/test_tri_node/test_sovereign_mesh.py` | 6 | **PASSED** | Air-gapped solo solving, network partition fallback, hash-chain tamper detection, P2P reciprocal sync |
 | Canonical Benchmarks & Universal Solvers | 145 | **PASSED** | Support enumeration, Lemke-Howson, Stackelberg bilevel, 7 domain packs, streamed Monte Carlo runtime |
-| **Total** | **178** | **100% GREEN** | **Zero Regressions** |
+| **Total** | **182** | **100% GREEN** | **Zero Regressions** |
 
 ---
 
 ## 4. Audit Conclusion
 
 The Strategic Systems Engine is fully hardened, cryptographically verified, and ready for production integration with the parent **AIVA** orchestration layer.
+

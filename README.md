@@ -1,11 +1,12 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-178%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-182%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
 [![Security](https://img.shields.io/badge/Security-Zero--Trust%20Quorum-red.svg)]()
 [![AIVA Bridge](https://img.shields.io/badge/AIVA-Integrated-success.svg)]()
+[![Adversarial Arena](https://img.shields.io/badge/Swarm%20Arena-Elo%20Calibrated-purple.svg)]()
 [![Sovereign Mesh](https://img.shields.io/badge/Tri--Node-Zero--SPOF-blueviolet.svg)]()
 [![Swarm Engine](https://img.shields.io/badge/Swarm-Self--Healing-orange.svg)]()
 
@@ -30,6 +31,9 @@ The **Strategic Systems Engine (SSE)** is an advanced computational software eng
   * **P2P Ingress Firewall & Rate Limiter (`MeshPayloadFirewall`):** Token bucket rate limiting, request size bounds, strict JSON schema validation, and clock skew guards.
 - **Autonomous Sub-Agent Swarm Orchestration Engine (`sse.swarm`):**
   * **Six Functional Sub-Agents:** Architect, Builder, Runtime Supervisor, Security Auditor, Adversarial Red Team, and Automated Healer.
+  * **Git Worktree Isolation & Rollback (`GitWorktreeSandbox`):** Ephemeral detached worktree isolation, atomic `checkpoint()`, automated `rollback()` upon syntax/test regression, and clean unified patch export (`export_patch()`).
+  * **Adversarial Arena & Elo Calibration (`SwarmArena`):** 50-thread concurrency thrash, boundary overflow, and bit-flip tamper tournament evaluation. Calibrates empirical candidate Elo ratings and enforces $\ge 95\%$ survival rate gates.
+  * **Tri-Node Arena Offloading (`ArenaTournamentDispatcher`):** P2P mesh offload of heavy Monte Carlo stress testing from PC-A to PC-B over `/mesh/arena` with zero-hang local fallback.
   * **Closed-Loop Convergence Loop:** Generates zero-mock, syntactically valid code in sandboxed workspaces, runs subprocess tests, performs static security analysis (OWASP Top 10, secrets, SQL injection, RLS), and iteratively heals failures until tests pass with zero high/critical vulnerabilities.
 - **Sovereign Tri-Node Mesh Architecture (`sse.tri_node`):**
   * Zero-SPOF symmetric architecture across Node A (RTX 3050 GPU), Node B (Intel Iris Xe), and Node M (Mobile Termux).

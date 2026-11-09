@@ -152,3 +152,4 @@ def test_ingress_rate_limiting_and_payload_caps() -> None:
 
     # 31st request in the same window must be rejected
     assert limiter.allow(peer_id=peer_ip) is False
+

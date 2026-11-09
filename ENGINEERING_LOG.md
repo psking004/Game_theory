@@ -93,3 +93,16 @@
   * End-to-End Gateway Integration Test Suite: `tests/test_gateway/test_aiva_integration.py` (5 tests covering deadlock pruning, EVPI calculation, quorum clearance, autonomous swarm build, and tool dispatch).
   * System Hardening Verification Suite: `tests/test_security/test_system_hardening.py` (5 tests covering nonce replay, dual quorum, traversal defense, multi-threaded ledger concurrency, and 1 MB payload limits).
   * Overall Test Suite: 178 passed out of 178 tests (100%), 0 ruff lint errors.
+- **Milestone 20 (Git Worktree Sandboxes, Swarm Adversarial Arena & Tri-Node Offloading):**
+  * Git Worktree Sandbox (`sse.swarm.worktree_sandbox.GitWorktreeSandbox`):
+    - Ephemeral isolated Git worktrees on detached HEAD or temporary branches (`swarm-build-<uuid>`) with directory containment via `SandboxedWorkspaceGuard`.
+    - Native `checkpoint(message)` commits, automated regression `rollback()` (hard reset to last checkpoint and untracked file cleanup), and `export_patch()` unified diff extraction.
+  * Adversarial Arena & Elo Rating Engine (`sse.swarm.arena.SwarmArena`):
+    - Multi-round empirical tournament evaluating candidate deliverables against Red Team vectors (50-thread concurrency thrash, boundary overflow, bit-flip tampering, load burst).
+    - Logistic Elo rating calibration ($K=32$) against baseline policies (1400.0).
+    - Hard Arena Convergence Gate: enforces $\ge 95\%$ survival rate and $\le 0.15$ worst-case regret.
+  * Tri-Node Arena Offloading (`sse.tri_node.arena_dispatcher.ArenaTournamentDispatcher`):
+    - Transparent P2P offloading of heavy adversarial tournaments from PC-A to PC-B over `/mesh/arena` endpoint.
+    - Zero-hang instant local fallback on network partition.
+  * Verification Test Suite: `tests/test_swarm/test_arena_swarm.py` (4 tests covering worktree rollback, Elo drop on defect, end-to-end patch export, and P2P offload).
+  * Overall Test Suite: 182 passed out of 182 tests (100%), 0 ruff lint errors.

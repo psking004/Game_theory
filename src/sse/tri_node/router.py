@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 import threading
 import time
 import urllib.error
@@ -154,6 +155,43 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     "records": all_lines,
                 },
             )
+
+        elif path == "/mesh/arena":
+            candidate_id = str(payload.get("candidate_id", "candidate_remote"))
+            rounds = int(payload.get("rounds", 10))
+            files = payload.get("files", {})
+
+            with tempfile.TemporaryDirectory(prefix="mesh_arena_") as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                for rel_path, content in files.items():
+                    target = tmp_path / rel_path
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(content, encoding="utf-8")
+
+                from sse.swarm.arena import SwarmArena
+
+                arena = SwarmArena(baseline_elo=1400.0)
+                summary = arena.run_tournament(tmp_path, candidate_id=candidate_id, rounds=rounds)
+
+                self._send_json(
+                    200,
+                    {
+                        "status": "COMPLETED",
+                        "candidate_id": summary.candidate_id,
+                        "rounds": summary.rounds_played,
+                        "wins": summary.wins,
+                        "losses": summary.losses,
+                        "draws": summary.draws,
+                        "survival_rate": summary.survival_rate,
+                        "initial_elo": summary.initial_elo,
+                        "final_elo": summary.final_elo,
+                        "elo_delta": summary.elo_delta,
+                        "passed_gate": summary.passed_gate,
+                        "worst_case_regret": summary.worst_case_regret,
+                        "compact_payload": summary.to_compact_payload(),
+                        "node_id": self.server.node_id,
+                    },
+                )
         else:
             self._send_json(404, {"error": "Endpoint not found"})
 
