@@ -13,3 +13,36 @@
 - **Master Prompt 08:** Persistence & security (`sse.storage`): filesystem storage with path traversal protection, structured audit logging, and input validation.
 - **Master Prompt 09:** Exhaustive testing & verification: 47 automated tests passing with 0 failures, ruff linter passing with 0 errors.
 - **Master Prompt 10:** Release audit, traceability matrix, and full documentation package.
+- **Milestone 11 (Four Research Mathematical Pillars):**
+  * Exact Support Enumeration (`ExactSupportEnumerationSolver`) for arbitrary bimatrix games.
+  * Lemke-Howson algorithm (`LemkeHowsonSolver`) via Linear Complementarity Problem (LCP) pivoting.
+  * Bilevel Stackelberg Leader-Follower solver (`BilevelStackelbergSolver`) under follower best-response correspondence.
+  * Bayesian Incomplete Information formulation (`BayesianGame`) with Harsanyi Transformation and CARA/CRRA risk modeling.
+  * Repeated interaction runtime with Maynard Smith Evolutionary Stable Strategy (ESS) verification.
+  * Canonical Benchmark Suite (`CanonicalBenchmarkSuite`) and `MATHEMATICAL_VERIFICATION_REPORT.md`.
+- **Milestone 12 (Core Engine Compression & Strict Memory-Bounded Tiering):**
+  * Memory-Bounded Tiered Decision Core (`optimized_core.py`): Tier 1 IESDS, Tier 2 Bounded Stackelberg ($k \le 4$), Tier 3 Savage Minimax Regret.
+  * Compact Strategic Verdict (`CompactStrategicVerdict`): strict character cap (< 400 chars / < 1.2 KB JSON).
+  * Streamed $O(1)$-Memory Monte Carlo Simulator (`compact_simulator.py`): Welford one-pass running mean/variance, downside semi-variance, and reservoir $\text{VaR}_{0.95}$ under 50 KB heap across 10,000+ rounds.
+  * Matrix Compressor (`matrix_compressor.py`): float32 quantization, $L_2$ action clustering for $> 6$ actions, and $[0, 100]$ affine normalization.
+  * Benchmark report: `OPTIMIZED_ENGINE_BENCHMARK.md` (peak RAM 0.42 MB, solver latency 0.136 ms, 71.8% latency reduction).
+- **Milestone 13 (Seven Application Domain Packs):**
+  * Domain 1: Cybersecurity (Stackelberg security games, honeypot signaling, cyber contagion percolation).
+  * Domain 2: Economics (Dynamic Cournot/Bertrand duopolies, spectrum auctions, principal-agent contract moral hazard).
+  * Domain 3: Business Strategy (R&D patent races, market entry deterrence, supply chain double marginalization).
+  * Domain 4: Logistics (Multi-depot vehicle routing games, cross-docking coalition cost-sharing, warehouse fulfillment matching).
+  * Domain 5: Transportation (Wardrop user equilibrium, Braess's paradox, dynamic congestion tolling).
+  * Domain 6: Social Systems (Public goods voluntary provision, opinion polarization bounded confidence, strategic voting manipulation).
+  * Domain 7: Autonomous Systems (Collision avoidance intersection games, distributed sensor consensus, multi-robot task allocation).
+  * Verification report: `DOMAIN_PACKS_VERIFICATION_REPORT.md` (20 domain unit tests passing).
+- **Milestone 14 (Unified Typer CLI Engine & Packaging):**
+  * Typer CLI (`sse.cli:app`): `sse doctor` self-diagnostic, `sse domain list/inspect/run`, `sse solve`, `sse simulate`.
+  * Packaging configuration in `pyproject.toml` with console script `sse = "sse.cli:app"`. Installed and verified via `sse.exe`.
+- **Milestone 15 (Real-Time Hardware Telemetry & Distributed PC-A ↔ PC-B Execution):**
+  * Telemetry Bridge (`telemetry_bridge.py`): Live host metrics via `psutil` (CPU, RAM, Disk) and NVIDIA GPU accelerator metrics via NVML (RTX 3050 VRAM used/total/available).
+  * Dynamic Allocation Scoring: Binary OOM risk evaluation and IESDS pruning when task VRAM exceeds available headroom.
+  * Cluster HMAC Security Gate (`security.py`): HMAC-SHA256 grant authentication with anti-replay timestamp verification.
+  * Distributed Worker Service (`worker_service.py`): FastAPI execution daemon on PC-B (port 8220) executing streamed $O(1)$-memory repeated simulations.
+  * Client Dispatcher (`client.py`): `RemoteWorkerClient` on PC-A with synchronous and asynchronous dispatch.
+  * CLI Extensions: `sse telemetry` (table & JSON modes) and `sse worker run`.
+  * Test Suite Status: 144 passed out of 144 tests (100%), 0 ruff lint errors.
