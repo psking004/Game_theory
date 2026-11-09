@@ -16,3 +16,4 @@ Core data structures, game validation, pure Nash enumeration, discrete simulatio
 - **Positive:** SSE core can be installed and executed anywhere Python 3.11+ runs without binary dependencies.
 - **Positive:** High performance is unlocked seamlessly when scientific dependencies are installed.
 - **Negative:** Dual-path testing is required to verify both pure-Python and accelerated routines.
+

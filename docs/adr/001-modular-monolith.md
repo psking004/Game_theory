@@ -15,3 +15,4 @@ SSE is implemented as an in-process, strongly typed **modular monolith** in Pyth
 ### Consequences
 - **Positive:** Maximum execution speed, zero network serialization penalty, simple local testing and debugging, atomic transactions.
 - **Negative:** Scale-out requires multi-process worker pools or task runners (supported via CLI and REST API).
+

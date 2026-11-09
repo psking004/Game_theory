@@ -32,3 +32,4 @@ When submitting bug reports or investigating unexpected solver outcomes:
 1. Provide the exact game definition JSON document.
 2. Record the solver configuration and numerical tolerance parameter (`--tolerance`).
 3. Run `sse validate <path_to_game>` to verify structural validity before solving.
+

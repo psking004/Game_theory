@@ -44,3 +44,4 @@ game = braess_paradox()
 result = PureNashSolver().solve(game)
 print("Braess Paradox Nash Equilibria:", [eq.actions for eq in result.equilibria])
 ```
+

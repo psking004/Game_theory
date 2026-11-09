@@ -28,3 +28,4 @@ class TransportationDomain:
         if name not in factories:
             raise KeyError(f"Scenario '{name}' not found in transportation domain.")
         return factories[name]()
+

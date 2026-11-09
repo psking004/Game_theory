@@ -20,3 +20,4 @@ def two_route_commute() -> FiniteNormalFormGame:
 
 def corridor_peak_spreading() -> FiniteNormalFormGame:
     return CommuteCongestionGame().to_game()
+

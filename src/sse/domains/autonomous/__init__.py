@@ -28,3 +28,4 @@ class AutonomousSystemsDomain:
         if name not in factories:
             raise KeyError(f"Scenario '{name}' not found in autonomous systems domain.")
         return factories[name]()
+

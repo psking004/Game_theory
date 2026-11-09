@@ -20,3 +20,4 @@ def dynamic_spectrum_access() -> FiniteNormalFormGame:
 
 def cooperative_perimeter_patrol() -> FiniteNormalFormGame:
     return MultiRobotPatrolGame().to_game()
+

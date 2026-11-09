@@ -20,3 +20,4 @@ def market_entry_deterrence() -> FiniteNormalFormGame:
 
 def rd_investment_race() -> FiniteNormalFormGame:
     return StrategicInvestmentGame().to_game()
+

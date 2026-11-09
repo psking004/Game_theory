@@ -56,3 +56,4 @@ class SolverRegistry:
 
 # Global singleton registry
 registry = SolverRegistry()
+

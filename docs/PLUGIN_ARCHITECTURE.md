@@ -34,3 +34,4 @@ stateDiagram-v2
 3. **Validation:** The plugin's `validate()` hook tests environmental requirements and structural completeness.
 4. **Registration:** `register()` executes registrations into `sse.solvers.registry.registry`, `sse.domains.DomainRegistry`, etc.
 5. **Isolation:** Plugins operate within standardized try/except boundaries with explicit error tracing.
+

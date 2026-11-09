@@ -100,3 +100,4 @@ $$u(x^*, (1-\epsilon)x^* + \epsilon y) > u(y, (1-\epsilon)x^* + \epsilon y)$$
 Equivalently:
 1. $u(x^*, x^*) \ge u(y, x^*)$ (Nash condition)
 2. If $u(x^*, x^*) = u(y, x^*)$, then $u(x^*, y) > u(y, y)$ (Stability condition)
+

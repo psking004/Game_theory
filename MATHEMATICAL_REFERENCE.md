@@ -55,3 +55,4 @@ $$\frac{dx_i}{dt} = x_i \left[ (A x)_i - x^T A x \right]$$
 A strategy $x^*$ is an Evolutionarily Stable Strategy (ESS) if:
 1. $x^{*T} A x^* \ge y^T A x^*$ for all $y \in \Delta$.
 2. If $x^{*T} A x^* = y^T A x^*$, then $x^{*T} A y > y^T A y$.
+

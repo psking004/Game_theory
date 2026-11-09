@@ -107,3 +107,4 @@ for eq in result.equilibria:
 sim_result = client.simulate(game, strategies={}, rounds=500, seed=123)
 print(f"Total simulated payoffs: {sim_result.total_payoffs}")
 ```
+

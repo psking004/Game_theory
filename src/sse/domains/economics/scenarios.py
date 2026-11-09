@@ -32,3 +32,4 @@ def bertrand_duopoly() -> FiniteNormalFormGame:
 def public_goods_3player() -> FiniteNormalFormGame:
     """3-player public goods provision dilemma."""
     return PublicGoodsGame().to_game()
+

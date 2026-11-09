@@ -23,3 +23,4 @@ SSE processes user-defined mathematical models, external simulation scripts, and
 - **Path Traversal Protection:** The storage layer sanitizes all model IDs and file paths using resolved canonical paths within configured base directories.
 - **Strict OpenAPI Validation:** The REST API strictly rejects undeclared properties and malformed numeric values.
 - **Audit Logging:** Structured logging records computation start/stop, solver convergence status, and execution duration without logging model secrets or PII.
+

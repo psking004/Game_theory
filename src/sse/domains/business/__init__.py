@@ -28,3 +28,4 @@ class BusinessDomain:
         if name not in factories:
             raise KeyError(f"Scenario '{name}' not found in business domain.")
         return factories[name]()
+

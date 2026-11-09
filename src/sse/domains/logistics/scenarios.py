@@ -20,3 +20,4 @@ def shared_warehouse_allocation() -> FiniteNormalFormGame:
 
 def dock_scheduling() -> FiniteNormalFormGame:
     return MultiPartySchedulingGame().to_game()
+

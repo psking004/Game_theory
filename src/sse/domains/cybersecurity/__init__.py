@@ -28,3 +28,4 @@ class CybersecurityDomain:
         if name not in factories:
             raise KeyError(f"Scenario '{name}' not found in cybersecurity domain.")
         return factories[name]()
+

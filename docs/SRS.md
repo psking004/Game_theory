@@ -92,3 +92,4 @@ SSE is architected as an extensible modular monolith providing:
 - **NFR-PORT-001 (Dependency Resilience):** Core modeling, validation, pure Nash solving, and file I/O SHALL function without requiring binary C/Fortran extensions; advanced numerical routines SHALL gracefully accelerate via NumPy/SciPy when installed.
 - **NFR-TEST-001 (Test Coverage):** Total automated test suite line coverage SHALL exceed 85% with zero failing or disabled tests.
 - **NFR-SEC-001 (Input Validation):** All untrusted input formats (JSON, CLI arguments, REST payloads) SHALL be strictly validated against invariant contracts prior to computational processing.
+

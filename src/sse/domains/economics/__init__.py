@@ -28,3 +28,4 @@ class EconomicsDomain:
         if name not in factories:
             raise KeyError(f"Scenario '{name}' not found in economics domain.")
         return factories[name]()
+

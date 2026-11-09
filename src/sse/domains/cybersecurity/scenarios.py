@@ -30,3 +30,4 @@ def apt_defense_scenario() -> FiniteNormalFormGame:
 def security_investment_2firm() -> FiniteNormalFormGame:
     """Interdependent firm security investment under breach risks."""
     return SecurityInvestmentGame().to_game()
+

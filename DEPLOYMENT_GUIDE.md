@@ -59,3 +59,4 @@ docker run -d -p 8000:8000 --name sse sse-engine:1.0.0
 
 - Health check probe: `GET /api/v1/health` (returns status `200 OK` with JSON `{"status": "healthy"}`).
 - Process memory limits: Standard solver instances cap memory consumption below 512MB per process for games up to $10^5$ profiles.
+

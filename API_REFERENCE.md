@@ -58,3 +58,4 @@ Canonical data structure for finite normal-form games.
 - **`FictitiousPlayAgent`**: Empirical frequency best-response learning.
 - **`RegretMatchingAgent`**: Regret minimization strategy adjustments.
 - **`Tournament`**: Round-robin competition runner.
+

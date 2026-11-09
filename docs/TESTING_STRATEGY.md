@@ -38,3 +38,4 @@
 - **Battle of the Sexes:** Two pure Nash equilibria $(O, O)$ and $(F, F)$, plus one mixed equilibrium $(2/3, 1/3)$ and $(1/3, 2/3)$.
 - **Rock-Paper-Scissors:** Zero-sum symmetric game; unique mixed Nash equilibrium at $(1/3, 1/3, 1/3)$ with value 0.
 - **Airport Landing Game:** Cooperative TU game verifying Shapley values match the classical Littlechild & Owen (1973) formula.
+

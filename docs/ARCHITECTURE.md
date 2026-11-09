@@ -105,3 +105,4 @@ All public methods validate inputs at their boundary. Invalid states raise speci
 - `RuntimeError`: Numerical solver non-convergence or timeout.
 
 No solver or simulation method may silently ignore exceptions, emit dummy values in place of valid calculations, or disable convergence checks.
+

@@ -70,3 +70,4 @@ class GameFamilyPlugin(SSEPlugin):
     @abstractmethod
     def get_game_family(self) -> Any:
         ...
+

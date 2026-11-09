@@ -28,3 +28,4 @@ class SocialSystemsDomain:
         if name not in factories:
             raise KeyError(f"Scenario '{name}' not found in social systems domain.")
         return factories[name]()
+

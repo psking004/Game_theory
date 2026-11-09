@@ -87,3 +87,4 @@ ruff check src/ tests/
 # Type checking
 mypy src/
 ```
+

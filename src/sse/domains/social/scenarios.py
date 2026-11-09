@@ -20,3 +20,4 @@ def stag_hunt() -> FiniteNormalFormGame:
 
 def condorcet_voting() -> FiniteNormalFormGame:
     return StrategicVotingGame().to_game()
+
