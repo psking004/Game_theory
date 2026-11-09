@@ -151,6 +151,10 @@ class SecurityAuditorAgent:
 
         return findings
 
+    def audit(self, state: SwarmWorkspaceState) -> list[VulnerabilityFinding]:
+        """Audit all active artifacts in the workspace state (alias for audit_workspace)."""
+        return self.audit_workspace(state)
+
     def audit_workspace(self, state: SwarmWorkspaceState) -> list[VulnerabilityFinding]:
         """Audit all active artifacts in the workspace state."""
         findings: list[VulnerabilityFinding] = []

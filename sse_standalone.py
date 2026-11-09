@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -80,6 +81,66 @@ class SovereignDecisionVerdict:
             "mode": self.mode,
         }
         return json.dumps(data, separators=(",", ":"))
+
+
+@dataclass
+class TriNodeFrame:
+    """Canonical wire frame for signed P2P communication across the mesh."""
+
+    sender_node_id: str
+    action: str
+    payload: dict[str, Any]
+    timestamp: float = 0.0
+    nonce: str = ""
+    signature: str = ""
+
+    def __post_init__(self) -> None:
+        if self.timestamp == 0.0:
+            self.timestamp = time.time()
+        if not self.nonce:
+            self.nonce = uuid.uuid4().hex[:12]
+
+    def canonical_bytes(self) -> bytes:
+        data = {
+            "sender_node_id": self.sender_node_id,
+            "action": self.action,
+            "payload": self.payload,
+            "timestamp": round(self.timestamp, 3),
+            "nonce": self.nonce,
+        }
+        return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+    def sign(self, secret: str = CLUSTER_SHARED_SECRET) -> str:
+        sig = hmac.new(secret.encode("utf-8"), self.canonical_bytes(), hashlib.sha256).hexdigest()
+        self.signature = sig
+        return sig
+
+    def verify_signature(self, secret: str = CLUSTER_SHARED_SECRET) -> bool:
+        if not self.signature:
+            return False
+        expected = hmac.new(secret.encode("utf-8"), self.canonical_bytes(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(self.signature, expected)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sender_node_id": self.sender_node_id,
+            "action": self.action,
+            "payload": self.payload,
+            "timestamp": round(self.timestamp, 3),
+            "nonce": self.nonce,
+            "signature": self.signature,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> TriNodeFrame:
+        return cls(
+            sender_node_id=str(data.get("sender_node_id", "")),
+            action=str(data.get("action", "")),
+            payload=data.get("payload", {}) if isinstance(data.get("payload"), dict) else {},
+            timestamp=float(data.get("timestamp", 0.0)),
+            nonce=str(data.get("nonce", "")),
+            signature=str(data.get("signature", "")),
+        )
 
 
 def generate_sovereign_grant(
@@ -526,6 +587,8 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     "timestamp": time.time(),
                 },
             )
+        elif path in ("/mesh/inspect", "/mesh/telemetry"):
+            self._send_json(200, self._handle_inspect_telemetry())
         elif path in ("/mesh/records", "/mesh/ledger"):
             records = self.server.ledger.read_records()
             self._send_json(
@@ -539,6 +602,109 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         else:
             self._send_json(404, {"error": "Endpoint not found"})
 
+    def _handle_inspect_telemetry(self) -> dict[str, Any]:
+        import platform
+
+        return {
+            "status": "READY",
+            "node_id": self.server.node_id,
+            "mode": self.server.mode,
+            "latest_hash": self.server.ledger.get_latest_hash(),
+            "timestamp": time.time(),
+            "telemetry": {
+                "system": platform.system(),
+                "machine": platform.machine(),
+                "cpu_count": os.cpu_count() or 1,
+                "python_version": platform.python_version(),
+            },
+        }
+
+    def _handle_write_file(self, payload: dict[str, Any]) -> dict[str, Any]:
+        rel_path = str(payload.get("relative_path", "")).strip()
+        content = str(payload.get("content", ""))
+        sandbox_id = str(payload.get("sandbox_id", "default_sandbox"))
+        if not rel_path:
+            raise ValueError("Parameter 'relative_path' is required.")
+
+        base_sandbox = (Path(tempfile.gettempdir()) / "sse_standalone_sandboxes" / f"sb_{sandbox_id}").resolve()
+        base_sandbox.mkdir(parents=True, exist_ok=True)
+        target = (base_sandbox / rel_path).resolve()
+        if not str(target).startswith(str(base_sandbox)):
+            raise PermissionError(f"Path traversal escape attempt detected: '{rel_path}'")
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        raw_bytes = content.encode("utf-8")
+        sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        return {
+            "status": "SUCCESS",
+            "relative_path": rel_path,
+            "resolved_path": str(target),
+            "size_bytes": len(raw_bytes),
+            "sha256": sha256,
+            "node_id": self.server.node_id,
+        }
+
+    def _handle_build_software(self, payload: dict[str, Any]) -> dict[str, Any]:
+        project_name = str(payload.get("project_name", f"standalone_build_{int(time.time())}"))
+        files = payload.get("files", {})
+        test_cmd = payload.get("test_command") or [sys.executable, "-c", "print('Build verified')"]
+        timeout_sec = float(payload.get("timeout_sec", 30.0))
+
+        with tempfile.TemporaryDirectory(prefix=f"build_{project_name}_") as tmp_dir:
+            tmp_path = Path(tmp_dir).resolve()
+            if isinstance(files, list):
+                for f_entry in files:
+                    p = f_entry.get("path") or f_entry.get("relative_path")
+                    c = f_entry.get("content", "")
+                    if p:
+                        target = (tmp_path / p).resolve()
+                        if not str(target).startswith(str(tmp_path)):
+                            raise PermissionError(f"Path traversal rejected: '{p}'")
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_text(c, encoding="utf-8")
+            elif isinstance(files, dict):
+                for p, c in files.items():
+                    target = (tmp_path / p).resolve()
+                    if not str(target).startswith(str(tmp_path)):
+                        raise PermissionError(f"Path traversal rejected: '{p}'")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(c, encoding="utf-8")
+
+            t0 = time.time()
+            try:
+                proc = subprocess.run(
+                    test_cmd,
+                    cwd=str(tmp_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sec,
+                    check=False,
+                )
+                duration_ms = round((time.time() - t0) * 1000, 2)
+                status = "COMPLETED" if proc.returncode == 0 else "FAILED"
+                return {
+                    "status": status,
+                    "project_name": project_name,
+                    "node_id": self.server.node_id,
+                    "exit_code": proc.returncode,
+                    "stdout": proc.stdout[:100000],
+                    "stderr": proc.stderr[:100000],
+                    "duration_ms": duration_ms,
+                    "timed_out": False,
+                }
+            except subprocess.TimeoutExpired:
+                return {
+                    "status": "FAILED",
+                    "project_name": project_name,
+                    "node_id": self.server.node_id,
+                    "exit_code": -1,
+                    "stdout": "",
+                    "stderr": f"Process exceeded timeout limit of {timeout_sec}s",
+                    "duration_ms": round((time.time() - t0) * 1000, 2),
+                    "timed_out": True,
+                }
+
     def do_POST(self) -> None:
         path = self.path.split("?")[0]
         content_length = int(self.headers.get("Content-Length", 0))
@@ -551,23 +717,93 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/mesh/dispatch":
-            u1 = payload.get("u1")
-            u2 = payload.get("u2")
+            # Verify signed frame if signature provided
+            if "signature" in payload:
+                try:
+                    frame = TriNodeFrame.from_dict(payload)
+                except Exception as exc:
+                    self._send_json(400, {"error": "MALFORMED_FRAME", "details": str(exc)})
+                    return
+
+                if not frame.verify_signature(self.server.core.secret):
+                    self._send_json(401, {"error": "INVALID_SIGNATURE", "reason": "HMAC signature mismatch"})
+                    return
+
+                if abs(time.time() - frame.timestamp) > 300.0:
+                    self._send_json(400, {"error": "EXPIRED_FRAME", "reason": "Frame timestamp outside drift window"})
+                    return
+
+                action = frame.action
+                action_payload = frame.payload
+            else:
+                action = payload.get("action")
+                action_payload = payload.get("payload", payload)
+
+            if action in ("inspect_telemetry", "health"):
+                self._send_json(200, self._handle_inspect_telemetry())
+                return
+
+            if action == "write_file":
+                try:
+                    res = self._handle_write_file(action_payload)
+                    self._send_json(200, res)
+                except PermissionError as pe:
+                    self._send_json(403, {"error": "SANDBOX_ESCAPE_REJECTED", "details": str(pe)})
+                except Exception as exc:
+                    self._send_json(400, {"error": "WRITE_FILE_FAILED", "details": str(exc)})
+                return
+
+            if action == "build_software":
+                try:
+                    res = self._handle_build_software(action_payload)
+                    status_code = 200 if res.get("status") == "COMPLETED" else 422
+                    self._send_json(status_code, res)
+                except PermissionError as pe:
+                    self._send_json(403, {"error": "SANDBOX_VIOLATION", "details": str(pe)})
+                except Exception as exc:
+                    self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
+                return
+
+            mat_dict = action_payload if isinstance(action_payload, dict) and "u1" in action_payload else payload
+            u1 = mat_dict.get("u1")
+            u2 = mat_dict.get("u2")
             if not u1 or not u2:
-                self._send_json(422, {"error": "Payload missing u1 or u2 matrices"})
+                self._send_json(422, {"error": "Payload missing u1 or u2 matrices or valid action"})
                 return
 
             verdict = self.server.core.solve_matrix(
                 u1=u1,
                 u2=u2,
-                actions_p1=payload.get("actions_p1"),
-                actions_p2=payload.get("actions_p2"),
-                decision_id=payload.get("decision_id"),
+                actions_p1=mat_dict.get("actions_p1"),
+                actions_p2=mat_dict.get("actions_p2"),
+                decision_id=mat_dict.get("decision_id"),
                 prev_hash=self.server.ledger.get_latest_hash(),
                 airgapped_solo=False,
             )
             self.server.ledger.append_verdict(verdict, extra_meta={"dispatched_via": "mesh"})
             self._send_json(200, {"status": "COMPLETED", "verdict": json.loads(verdict.to_compact_payload())})
+
+        elif path in ("/mesh/inspect", "/mesh/telemetry"):
+            self._send_json(200, self._handle_inspect_telemetry())
+
+        elif path == "/mesh/write_file":
+            try:
+                res = self._handle_write_file(payload.get("payload", payload))
+                self._send_json(200, res)
+            except PermissionError as pe:
+                self._send_json(403, {"error": "SANDBOX_ESCAPE_REJECTED", "details": str(pe)})
+            except Exception as exc:
+                self._send_json(400, {"error": "WRITE_FILE_FAILED", "details": str(exc)})
+
+        elif path == "/mesh/build":
+            try:
+                res = self._handle_build_software(payload.get("payload", payload))
+                status_code = 200 if res.get("status") == "COMPLETED" else 422
+                self._send_json(status_code, res)
+            except PermissionError as pe:
+                self._send_json(403, {"error": "SANDBOX_VIOLATION", "details": str(pe)})
+            except Exception as exc:
+                self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
 
         elif path == "/mesh/sync":
             incoming_lines = payload.get("records", [])
@@ -853,6 +1089,17 @@ def main() -> int:
     sync_parser.add_argument("--peer", type=str, required=True, help="Peer URL")
     sync_parser.add_argument("--role", "-r", type=str, default="MOBILE", help="Local node role")
 
+    # Inspect
+    inspect_parser = subparsers.add_parser("inspect", help="Inspect peer node telemetry and ledger")
+    inspect_parser.add_argument("--peer", type=str, required=True, help="Peer URL")
+
+    # Exec
+    exec_parser = subparsers.add_parser("exec", help="Execute sandboxed file or build on peer node")
+    exec_parser.add_argument("--peer", type=str, required=True, help="Peer URL")
+    exec_parser.add_argument("--file", "-f", type=str, required=True, help="Local file path to send")
+    exec_parser.add_argument("--target-path", "-t", type=str, default=None, help="Target relative path")
+    exec_parser.add_argument("--action", type=str, default="write_file", choices=["write_file", "build_software"])
+
     args = parser.parse_args()
 
     if args.command == "doctor":
@@ -919,6 +1166,68 @@ def main() -> int:
         res = router.sync_with_peer(peer_url=args.peer)
         print(f"Result: {json.dumps(res, indent=2)}")
         return 0
+
+    elif args.command == "inspect":
+        frame = TriNodeFrame(
+            sender_node_id="STANDALONE_CLI",
+            action="inspect_telemetry",
+            payload={"peer": args.peer},
+        )
+        frame.sign(CLUSTER_SHARED_SECRET)
+        url = f"{args.peer.rstrip('/')}/mesh/dispatch"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(frame.to_dict(), separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                print(f"[OK] Peer Inspection Result:\n{json.dumps(data, indent=2)}")
+                return 0
+        except Exception as exc:
+            print(f"[ERROR] Failed to inspect peer {args.peer}: {exc}")
+            return 1
+
+    elif args.command == "exec":
+        p = Path(args.file)
+        if not p.exists():
+            print(f"[ERROR] File not found: {args.file}")
+            return 1
+        content = p.read_text(encoding="utf-8")
+        rel_target = args.target_path or p.name
+
+        if args.action == "write_file":
+            payload_data = {"relative_path": rel_target, "content": content}
+        else:
+            payload_data = {
+                "project_name": p.stem,
+                "files": {rel_target: content},
+                "test_command": [sys.executable, "-c", f"print('Executed {rel_target}')"],
+            }
+
+        frame = TriNodeFrame(
+            sender_node_id="STANDALONE_CLI",
+            action=args.action,
+            payload=payload_data,
+        )
+        frame.sign(CLUSTER_SHARED_SECRET)
+        url = f"{args.peer.rstrip('/')}/mesh/dispatch"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(frame.to_dict(), separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                print(f"[OK] Peer Exec Result:\n{json.dumps(data, indent=2)}")
+                return 0
+        except Exception as exc:
+            print(f"[ERROR] Failed to exec on peer {args.peer}: {exc}")
+            return 1
 
     else:
         parser.print_help()

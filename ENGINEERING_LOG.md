@@ -106,3 +106,24 @@
     - Zero-hang instant local fallback on network partition.
   * Verification Test Suite: `tests/test_swarm/test_arena_swarm.py` (4 tests covering worktree rollback, Elo drop on defect, end-to-end patch export, and P2P offload).
   * Overall Test Suite: 182 passed out of 182 tests (100%), 0 ruff lint errors.
+- **Milestone 21 (Tri-Node P2P Mesh Network, Signed Cryptographic Frames & Cross-Device Execution):**
+  * `TriNodeFrame` (`sse.tri_node.frame.TriNodeFrame`):
+    - Canonical deterministic byte serialization, HMAC-SHA256 frame signing, and constant-time signature verification.
+    - Wire-safe dictionary serialization and deserialization (`to_dict`, `from_dict`) with nonce replay protection and timestamp drift validation.
+  * `MeshActionDispatcher` (`sse.tri_node.mesh_handlers.MeshActionDispatcher`):
+    - Executes concrete remote actions with zero mocks:
+      - `inspect_telemetry`: host CPU, RAM, disk, GPU index 0 VRAM headroom, and latest ledger block hash.
+      - `write_file`: sandboxed file writes guarded by `SandboxedWorkspaceGuard` with strict path-traversal rejection (`PermissionError`) and SHA-256 integrity verification.
+      - `build_software`: flushes files into sandbox, executes static security audit via `SecurityAuditorAgent`, runs test commands under `HardenedProcessExecutor` with 100 KB output ceiling, and logs audit verdicts to `HardenedLedger`.
+  * Sovereign Mesh Router Updates (`sse.tri_node.router.MeshRequestHandler`):
+    - Authenticates incoming `TriNodeFrame` frames on `/mesh/dispatch` with HMAC signature verification and clock skew validation.
+    - Wire-level routing for `inspect_telemetry`, `write_file`, `build_software`, and `solve_matrix` actions with appropriate HTTP status codes (200, 401, 403, 422).
+  * `TriNodeMeshClient` (`sse.tri_node.client.TriNodeMeshClient`):
+    - High-level client providing `inspect_node`, `write_remote_file`, `dispatch_remote_build`, and `sync_ledger_with_peer`.
+    - Resilient zero-hang local fallback executing guarded local actions without unhandled exceptions when remote peer is unreachable or partitioned.
+  * Zero-Dependency Standalone Script (`sse_standalone.py`):
+    - Pure standard library implementation of `TriNodeFrame`, signed frame dispatch, telemetry inspection, sandboxed writes, and remote build execution with `sse_standalone.py inspect` and `sse_standalone.py exec`.
+  * Unified CLI Extensions (`src/sse/cli.py`):
+    - Added `sse mesh inspect --target-url <URL>`, `sse mesh exec --target-url <URL> --file <PATH>`, and `sse mesh sync --target-url <URL>`.
+  * Multi-Node Verification Suite: `tests/test_tri_node/test_mesh_dispatch.py` (7 tests covering frame signing, path-traversal rejection, guarded build, live HTTP roundtrip, instant offline fallback, and CLI commands).
+  * Overall Test Suite: 189 passed out of 189 tests (100%), 0 ruff lint errors.

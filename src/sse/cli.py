@@ -987,6 +987,100 @@ def swarm_audit_cmd(
     console.print(table)
 
 
+mesh_app = typer.Typer(
+    name="mesh",
+    help="Tri-Node Sovereign Mesh inspection, remote execution, and ledger synchronization.",
+    no_args_is_help=True,
+)
+app.add_typer(mesh_app, name="mesh")
+
+
+@mesh_app.command("inspect")
+def mesh_inspect_cmd(
+    target_url: str = typer.Option(..., "--target-url", "-t", help="Target node endpoint (e.g. http://192.168.1.50:8201)"),
+    role: str = typer.Option("PC_A", "--role", "-r", help="Sender node role (PC_A, PC_B, MOBILE)"),
+    timeout: float = typer.Option(2.0, "--timeout", help="Timeout in seconds"),
+) -> None:
+    """Inspect hardware telemetry, VRAM headroom, and ledger state of a peer node."""
+    from sse.tri_node.client import TriNodeMeshClient
+
+    client = TriNodeMeshClient(node_id=role)
+    console.print(f"[bold cyan]Inspecting peer node at [green]{target_url}[/green]...[/bold cyan]")
+    res = client.inspect_node(target_role=role, target_url=target_url, timeout=timeout)
+
+    table = Table(title=f"[bold cyan]Peer Inspection ({res.get('node_id', 'UNKNOWN')})[/bold cyan]", border_style="cyan")
+    table.add_column("Property", style="bold white")
+    table.add_column("Value", style="green")
+
+    table.add_row("Status", str(res.get("status", "UNKNOWN")))
+    table.add_row("Node ID", str(res.get("node_id", "UNKNOWN")))
+    table.add_row("Latest Hash", str(res.get("latest_hash", ""))[:16] + "...")
+    table.add_row("Fallback Local", "[yellow]True[/yellow]" if res.get("fallback_local") else "[green]False[/green]")
+
+    telem = res.get("telemetry", {})
+    if telem:
+        table.add_row("CPU Load", f"{telem.get('cpu_percent', telem.get('cpu_count', 'N/A'))}%")
+        table.add_row("RAM Used/Total", f"{telem.get('ram_used_gb', 'N/A')} / {telem.get('ram_total_gb', 'N/A')} GB")
+        table.add_row("GPU / VRAM Headroom", f"{telem.get('gpu_name', 'None')} ({telem.get('vram_available_gb', 'N/A')} GB avail)")
+
+    console.print(table)
+
+
+@mesh_app.command("exec")
+def mesh_exec_cmd(
+    target_url: str = typer.Option(..., "--target-url", "-t", help="Target node endpoint (e.g. http://192.168.1.50:8201)"),
+    file: Path = typer.Option(..., "--file", "-f", help="Local file to deploy and execute on peer"),  # noqa: B008
+    project_name: str = typer.Option("mesh_exec", "--project-name", "-p", help="Project name"),
+    test_command: str = typer.Option(None, "--test-command", "-c", help="Test execution command (defaults to python <file>)"),
+    role: str = typer.Option("PC_A", "--role", "-r", help="Sender node role"),
+    timeout: float = typer.Option(30.0, "--timeout", help="Timeout in seconds"),
+) -> None:
+    """Deploy file and execute build/test in isolated guarded sandbox on peer node."""
+    from sse.tri_node.client import TriNodeMeshClient
+
+    if not file.exists():
+        console.print(f"[bold red]File not found: {file}[/bold red]")
+        raise typer.Exit(code=1)
+
+    content = file.read_text(encoding="utf-8")
+    rel_name = file.name
+    client = TriNodeMeshClient(node_id=role)
+
+    console.print(f"[bold cyan]Dispatching remote execution of [green]{rel_name}[/green] to [yellow]{target_url}[/yellow]...[/bold cyan]")
+    cmd = [sys.executable, rel_name] if test_command is None else test_command.split()
+    res = client.dispatch_remote_build(
+        target_role=role,
+        target_url=target_url,
+        project_name=project_name,
+        files={rel_name: content},
+        test_command=cmd,
+        timeout_sec=timeout,
+    )
+
+    status_color = "bold green" if res.get("status") == "COMPLETED" else "bold red"
+    console.print(f"Status: [{status_color}]{res.get('status')}[/{status_color}] | Dispatched to: {res.get('dispatched_to')} (Local fallback: {res.get('fallback_local')})")
+    console.print(f"Exit code: {res.get('exit_code')} | Duration: {res.get('duration_ms', 0):.2f} ms")
+    if res.get("stdout"):
+        console.print(Panel(res["stdout"], title="STDOUT", border_style="green"))
+    if res.get("stderr"):
+        console.print(Panel(res["stderr"], title="STDERR", border_style="red"))
+
+
+@mesh_app.command("sync")
+def mesh_sync_cmd(
+    target_url: str = typer.Option(..., "--target-url", "-t", help="Target node endpoint (e.g. http://192.168.1.50:8201)"),
+    role: str = typer.Option("PC_A", "--role", "-r", help="Local node role"),
+    timeout: float = typer.Option(2.0, "--timeout", help="Timeout in seconds"),
+) -> None:
+    """Synchronize ledger records bidirectionally with peer node."""
+    from sse.tri_node.client import TriNodeMeshClient
+
+    client = TriNodeMeshClient(node_id=role)
+    console.print(f"[bold cyan]Synchronizing ledger with peer at [green]{target_url}[/green]...[/bold cyan]")
+    merged, latest_hash = client.sync_ledger_with_peer(target_url=target_url, timeout=timeout)
+    console.print(f"[bold green]Sync completed.[/bold green] Merged {merged} records. Latest hash: {latest_hash[:16]}...")
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint function returning POSIX exit code."""
     try:

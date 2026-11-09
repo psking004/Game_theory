@@ -1,6 +1,6 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-182%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-189%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
@@ -136,6 +136,11 @@ sse worker run --host 0.0.0.0 --port 8220
 sse node solve --node-id PC_A --solo
 sse node run --role PC_B --port 8202
 sse node sync --peer-url http://192.168.1.50:8202 --node-id PC_A
+
+# Tri-Node P2P Mesh Network Inspection & Remote Sandboxed Execution
+sse mesh inspect --target-url http://192.168.1.50:8202
+sse mesh exec --target-url http://192.168.1.50:8202 --file ./scripts/worker.py
+sse mesh sync --target-url http://192.168.1.50:8202
 
 # Autonomous Sub-Agent Swarm Deliverable Pipeline
 sse swarm run --task "Build token bucket rate limiter" --output-dir ./deliverable

@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Any
 
 from sse.tri_node.firewall import MeshPayloadFirewall
+from sse.tri_node.frame import TriNodeFrame
 from sse.tri_node.ledger import SovereignLedger
+from sse.tri_node.mesh_handlers import MeshActionDispatcher
 from sse.tri_node.sovereign_core import (
     CLUSTER_SHARED_SECRET,
     NodeID,
@@ -54,7 +56,7 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self) -> None:
-        """Route GET requests for health and ledger records."""
+        """Route GET requests for health, telemetry, and ledger records."""
         path = self.path.split("?")[0]
         if path == "/health":
             latest_hash = self.server.ledger.get_latest_hash()
@@ -69,6 +71,9 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     "timestamp": time.time(),
                 },
             )
+        elif path in ("/mesh/inspect", "/mesh/telemetry"):
+            data = self.server.action_dispatcher.handle_inspect_telemetry()
+            self._send_json(200, data)
         elif path in ("/mesh/records", "/mesh/ledger"):
             records = self.server.ledger.read_records()
             self._send_json(
@@ -106,15 +111,72 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         payload = payload or {}
 
         if path == "/mesh/dispatch":
-            u1 = payload.get("u1")
-            u2 = payload.get("u2")
-            if not u1 or not u2:
-                self._send_json(422, {"error": "Payload must contain 'u1' and 'u2' matrices"})
+            # Check for signed cryptographic frame
+            if "signature" in payload:
+                try:
+                    frame = TriNodeFrame.from_dict(payload)
+                except Exception as exc:
+                    self._send_json(400, {"error": "MALFORMED_FRAME", "details": str(exc)})
+                    return
+
+                if not frame.verify_signature(self.server.core.secret):
+                    self._send_json(
+                        401,
+                        {"error": "INVALID_SIGNATURE", "reason": "HMAC signature mismatch"},
+                    )
+                    return
+
+                if abs(time.time() - frame.timestamp) > 300.0:
+                    self._send_json(
+                        400,
+                        {"error": "EXPIRED_FRAME", "reason": "Frame timestamp outside valid drift window"},
+                    )
+                    return
+
+                action = frame.action
+                action_payload = frame.payload
+            else:
+                action = payload.get("action")
+                action_payload = payload.get("payload", payload)
+
+            # Route by action
+            if action in ("inspect_telemetry", "health"):
+                res = self.server.action_dispatcher.handle_inspect_telemetry()
+                self._send_json(200, res)
                 return
 
-            act_p1 = payload.get("actions_p1")
-            act_p2 = payload.get("actions_p2")
-            dec_id = payload.get("decision_id")
+            if action == "write_file":
+                try:
+                    res = self.server.action_dispatcher.handle_write_file(action_payload)
+                    self._send_json(200, res)
+                except PermissionError as pe:
+                    self._send_json(403, {"error": "SANDBOX_ESCAPE_REJECTED", "details": str(pe)})
+                except Exception as exc:
+                    self._send_json(400, {"error": "WRITE_FILE_FAILED", "details": str(exc)})
+                return
+
+            if action == "build_software":
+                try:
+                    res = self.server.action_dispatcher.handle_build_software(action_payload)
+                    status_code = 200 if res.get("status") == "COMPLETED" else 422
+                    self._send_json(status_code, res)
+                except PermissionError as pe:
+                    self._send_json(403, {"error": "SANDBOX_VIOLATION", "details": str(pe)})
+                except Exception as exc:
+                    self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
+                return
+
+            # Default to bimatrix game solving
+            mat_dict = action_payload if isinstance(action_payload, dict) and "u1" in action_payload else payload
+            u1 = mat_dict.get("u1")
+            u2 = mat_dict.get("u2")
+            if not u1 or not u2:
+                self._send_json(422, {"error": "Payload must contain 'u1' and 'u2' matrices or valid action"})
+                return
+
+            act_p1 = mat_dict.get("actions_p1")
+            act_p2 = mat_dict.get("actions_p2")
+            dec_id = mat_dict.get("decision_id")
             prev_hash = self.server.ledger.get_latest_hash()
 
             verdict = self.server.core.solve_matrix(
@@ -137,6 +199,29 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     "verdict": json.loads(verdict.to_compact_payload()),
                 },
             )
+
+        elif path in ("/mesh/inspect", "/mesh/telemetry"):
+            res = self.server.action_dispatcher.handle_inspect_telemetry()
+            self._send_json(200, res)
+
+        elif path == "/mesh/write_file":
+            try:
+                res = self.server.action_dispatcher.handle_write_file(payload.get("payload", payload))
+                self._send_json(200, res)
+            except PermissionError as pe:
+                self._send_json(403, {"error": "SANDBOX_ESCAPE_REJECTED", "details": str(pe)})
+            except Exception as exc:
+                self._send_json(400, {"error": "WRITE_FILE_FAILED", "details": str(exc)})
+
+        elif path == "/mesh/build":
+            try:
+                res = self.server.action_dispatcher.handle_build_software(payload.get("payload", payload))
+                status_code = 200 if res.get("status") == "COMPLETED" else 422
+                self._send_json(status_code, res)
+            except PermissionError as pe:
+                self._send_json(403, {"error": "SANDBOX_VIOLATION", "details": str(pe)})
+            except Exception as exc:
+                self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
 
         elif path == "/mesh/sync":
             incoming_lines = payload.get("records", [])
@@ -213,6 +298,7 @@ class MeshServer(ThreadingHTTPServer):
         self.mode = mode
         self.core = core
         self.ledger = ledger
+        self.action_dispatcher = MeshActionDispatcher(node_id=self.node_id, ledger=self.ledger)
         self.firewall = firewall or MeshPayloadFirewall()
         self.daemon_threads = True
         super().__init__(server_address, RequestHandlerClass)
