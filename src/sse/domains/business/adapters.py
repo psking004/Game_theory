@@ -46,3 +46,4 @@ class BusinessStrategyAdapter:
             beta_cross=beta_cross,
         )
         return model.to_game(user_prices=user_prices, dev_prices=dev_prices)
+

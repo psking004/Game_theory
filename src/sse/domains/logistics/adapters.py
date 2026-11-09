@@ -51,3 +51,4 @@ class LogisticsDomainAdapter:
             )
         model = ClusterComputeRoutingGame(nodes=nodes)
         return model.to_game(batch_sizes=batch_sizes)
+

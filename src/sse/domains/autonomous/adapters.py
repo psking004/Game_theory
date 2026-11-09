@@ -51,3 +51,4 @@ class AutonomousCoordinationAdapter:
             valuations=valuations,
         )
         return model.to_game(bid_levels=bid_levels)
+

@@ -69,3 +69,4 @@ class CybersecurityDomainAdapter:
             maintenance_budget=budget,
         )
         return patch_model.to_game()
+

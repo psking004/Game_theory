@@ -56,3 +56,4 @@ class SocialSystemsAdapter:
             graduated_sanction_factor=graduated_sanction_factor,
         )
         return cpr.to_game(extraction_levels=extraction_levels)
+

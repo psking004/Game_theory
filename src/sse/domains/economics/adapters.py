@@ -65,3 +65,4 @@ class EconomicsDomainAdapter:
             reserve_price=reserve_price,
         )
         return auction.to_game(valuations=valuations, bid_levels=bid_levels, auction_type="vickrey")
+
