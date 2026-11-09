@@ -152,3 +152,22 @@
     - 2-of-3 threshold quorum authorization gate (`ThresholdQuorumPolicy`): freezes Level 3 execution, generates challenge, and requires 2 cryptographic signatures (e.g. PC-A + Mobile) before proceeding.
   * **Verification Test Suite: `tests/test_aiva/test_agentic_environment.py` (6 tests covering vault encryption, DOM direct-fill, OAuth PKCE, proactive brief push, quorum approval, and long-term memory).**
   * **Overall Test Suite: 195 passed out of 195 tests (100%), 0 ruff lint errors.**
+- **Milestone 23 (Phase 1 Live Production Deployment Across Sovereign Tri-Node Mesh):**
+  * **Cluster Network Configuration (`sse.config.cluster.ClusterNetworkConfig`):**
+    - Environment overrides for node endpoints (`SSE_NODE_A_URL`, `SSE_NODE_B_URL`, `SSE_NODE_M_URL`).
+    - Dynamic HMAC key derivation per node ID (`derive_node_key`) from `SSE_CLUSTER_SECRET`.
+    - Failover timeout management with default 1.5s aggressive failover to local sovereign fallback.
+  * **Operational Runbook (`DEPLOYMENT_RUNBOOK.md`):**
+    - Comprehensive physical launch commands for PC-A (port 8201), PC-B (port 8202), and Mobile Node M (port 8203).
+    - Level 3 action freezing and mobile quorum signing workflows.
+  * **CLI Vault Initialization & Account Linking (`aiva.cli_vault` in `sse.cli`):**
+    - `sse vault init`: Secure master passphrase prompt (via `getpass`), PBKDF2 (100k iters) derivation, authenticated AES-256-GCM vault generation.
+    - `sse vault set`: Opaque handle storage (`vault://<cat>/<svc>/<k>`).
+    - `sse vault list`: Handle enumeration without plaintext value leakage.
+    - `sse oauth link`: Loopback PKCE server launch, browser authorization, and direct token vault injection.
+  * **PC-B Background Daemon Supervisor (`aiva.proactive.runner`):**
+    - Standalone daemon runner polling build health and telemetry, generating daily morning briefs (< 500 chars), pushing signed `TriNodeFrame` frames to Node M on port 8203, and logging audit blocks to `HardenedLedger`.
+    - Graceful shutdown signal handlers (`SIGINT`, `SIGTERM`).
+  * **Live Mesh Runbook Integration Test Suite (`tests/test_aiva/test_live_mesh_runbook.py`):**
+    - 3 tests validating cluster config, CLI vault flow, and live 3-node loopback interaction (Node A task delegation $\to$ Node B execution $\to$ Node M notification $\to$ Level 3 dual-node quorum approval).
+  * **Overall Test Suite: 198 passed out of 198 tests (100%), 0 ruff lint errors.**

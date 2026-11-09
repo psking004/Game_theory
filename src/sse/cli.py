@@ -994,6 +994,11 @@ mesh_app = typer.Typer(
 )
 app.add_typer(mesh_app, name="mesh")
 
+from aiva.cli_vault import oauth_cli_app, vault_cli_app
+
+app.add_typer(vault_cli_app, name="vault")
+app.add_typer(oauth_cli_app, name="oauth")
+
 
 @mesh_app.command("inspect")
 def mesh_inspect_cmd(
