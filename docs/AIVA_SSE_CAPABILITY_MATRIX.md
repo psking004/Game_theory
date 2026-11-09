@@ -99,3 +99,4 @@ This document provides a comprehensive mapping of existing Strategic Systems Eng
 - **Implementation**:
   - `sse.gateway.client.StrategicIntelligenceClient`: Exposes `analyse`, `predict`, `recommend`, `execute`, `explain`.
   - REST endpoints at `/api/v1/decisions` and `/api/v1/world-model`.
+

@@ -144,3 +144,4 @@ def test_aiva_rest_api_endpoints(api_client):
     res_stop = api_client.post("/api/v1/governance/emergency-stop", json={"reason": "Critical drill"})
     assert res_stop.status_code == 200
     assert res_stop.json()["emergency_stop_active"] is True
+

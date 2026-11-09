@@ -10,12 +10,29 @@ from sse.strategic.prediction import (
     ScenarioGenerator,
     UncertaintyQuantifier,
 )
+from sse.strategic.solvers import (
+    BilevelStackelbergSolver,
+    EquilibriumResult,
+    ExactSupportEnumerationSolver,
+    LemkeHowsonResult,
+    LemkeHowsonSolver,
+    StackelbergEquilibriumResult,
+    SupportEnumerationResult,
+)
 
 __all__ = [
+    "BilevelStackelbergSolver",
+    "EquilibriumResult",
+    "ExactSupportEnumerationSolver",
+    "LemkeHowsonResult",
+    "LemkeHowsonSolver",
     "ProbabilisticForecaster",
     "RegretAnalyzer",
     "Scenario",
     "ScenarioGenerator",
+    "StackelbergEquilibriumResult",
+    "SupportEnumerationResult",
     "UncertaintyQuantifier",
     "UtilityAnalyzer",
 ]
+

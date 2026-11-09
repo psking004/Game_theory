@@ -158,3 +158,15 @@ class FiniteNormalFormGame:
             },
             "payoffs": [list(vector) for vector in self.payoffs],
         }
+
+
+from sse.models.bayesian import BayesianGame, BayesianNashEquilibrium, BayesianType
+
+__all__ = [
+    "BayesianGame",
+    "BayesianNashEquilibrium",
+    "BayesianType",
+    "FiniteNormalFormGame",
+    "GameValidationError",
+    "Player",
+]

@@ -174,3 +174,4 @@ def test_world_state_manager_drift_detection():
     drift_check2 = state_mgr.detect_drift(snap1, snap3, tolerance_ratio=0.10)
     assert drift_check2["drift_detected"]
     assert len(drift_check2["drift_items"]) > 0
+

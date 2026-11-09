@@ -112,3 +112,4 @@ def test_minimax_regret_analyzer():
     assert best_act == "action_B"
     assert min_max_regret == 4.0
     assert all_regrets["action_A"] == 5.0
+

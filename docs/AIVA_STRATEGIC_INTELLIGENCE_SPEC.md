@@ -159,3 +159,4 @@ All subsystems are covered by an automated test suite verifying:
 - Sandboxed execution, rate limiting, and automated compensation rollback in reverse order.
 - Episodic decision memory, solver forecast bias tracking, and model registry offline evaluation gates.
 - High-level `StrategicIntelligenceClient` SDK and REST API endpoints.
+

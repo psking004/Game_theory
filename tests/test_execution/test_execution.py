@@ -135,3 +135,4 @@ def test_tool_call_adapter():
     res = adapter.execute(action)
     assert res.status == ActionExecutionStatus.SUCCESS
     assert res.output_payload["echo"] == "hello aiva"
+
