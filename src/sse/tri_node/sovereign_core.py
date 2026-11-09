@@ -27,6 +27,14 @@ class NodeID(str, Enum):
     MOBILE = "MOBILE"
 
 
+class NodeRole(str, Enum):
+    """Symmetric sovereign node roles."""
+
+    NODE_A = "PC_A"
+    NODE_B = "PC_B"
+    NODE_M = "MOBILE"
+
+
 class OperationalMode(str, Enum):
     """Node operational execution topology."""
 

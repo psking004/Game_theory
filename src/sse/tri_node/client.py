@@ -36,13 +36,19 @@ class TriNodeMeshClient:
 
     def __init__(
         self,
-        node_id: str | NodeID = NodeID.PC_A,
-        secret: str = CLUSTER_SHARED_SECRET,
+        node_id: str | NodeID | None = None,
+        secret: str | None = None,
         ledger: SovereignLedger | None = None,
         workspace_base_dir: Path | str | None = None,
+        current_role: Any = None,
+        shared_secret: Any = None,
     ) -> None:
-        self.node_id = str(node_id.value if isinstance(node_id, NodeID) else node_id)
-        self.secret = secret
+        role = current_role if current_role is not None else (node_id or NodeID.PC_A)
+        self.node_id = str(role.value if hasattr(role, "value") else role)
+        sec = shared_secret if shared_secret is not None else (secret or CLUSTER_SHARED_SECRET)
+        if isinstance(sec, bytes):
+            sec = sec.decode("utf-8", errors="replace")
+        self.secret = sec
         self.ledger = ledger or SovereignLedger(node_id=self.node_id)
         self.workspace_base_dir = Path(workspace_base_dir) if workspace_base_dir else None
         self._local_dispatcher: MeshActionDispatcher | None = None

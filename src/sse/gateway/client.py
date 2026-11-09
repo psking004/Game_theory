@@ -209,6 +209,7 @@ class AivaStrategicIntelligenceClient(StrategicIntelligenceClient):
         ledger: HardenedLedger | None = None,
         swarm_engine: SwarmOrchestrationEngine | None = None,
         node_id: str = "PC_A",
+        trusted_keys: dict[str, str] | None = None,
     ) -> None:
         super().__init__(
             decision_engine=decision_engine,
@@ -218,7 +219,12 @@ class AivaStrategicIntelligenceClient(StrategicIntelligenceClient):
         )
         self.node_id = node_id
         self.telemetry_bridge = telemetry_bridge or TelemetryBridge(node_id=node_id)
-        self.quorum_policy = quorum_policy or ThresholdQuorumPolicy()
+        if quorum_policy is not None:
+            self.quorum_policy = quorum_policy
+        elif trusted_keys is not None:
+            self.quorum_policy = ThresholdQuorumPolicy(node_keys=trusted_keys)
+        else:
+            self.quorum_policy = ThresholdQuorumPolicy()
         self.ledger = ledger or HardenedLedger(node_id=node_id)
         self.swarm_engine = swarm_engine or SwarmOrchestrationEngine()
 

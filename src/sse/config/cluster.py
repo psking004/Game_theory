@@ -16,7 +16,7 @@ import urllib.parse
 from dataclasses import dataclass, field
 from typing import Any
 
-from sse.tri_node.sovereign_core import CLUSTER_SHARED_SECRET, NodeID
+from sse.tri_node.sovereign_core import CLUSTER_SHARED_SECRET, NodeID, NodeRole
 
 DEFAULT_NODE_A_URL = "http://127.0.0.1:8201"
 DEFAULT_NODE_B_URL = "http://127.0.0.1:8202"
@@ -53,9 +53,9 @@ class ClusterNetworkConfig:
         if len(self.cluster_secret) < 16:
             raise ValueError("Cluster secret must be at least 16 characters for HMAC-SHA256 integrity.")
 
-    def get_node_url(self, node_id: str | NodeID) -> str:
-        """Resolve node URL by NodeID enum or string name."""
-        nid = node_id.value if isinstance(node_id, NodeID) else str(node_id).upper()
+    def get_node_url(self, node_id: str | NodeID | NodeRole) -> str:
+        """Resolve node URL by NodeID or NodeRole enum or string name."""
+        nid = node_id.value if hasattr(node_id, "value") else str(node_id).upper()
         if nid in (NodeID.PC_A.value, "PC_A", "PC-A", "NODE_A"):
             return self.node_a_url
         if nid in (NodeID.PC_B.value, "PC_B", "PC-B", "NODE_B"):
@@ -64,7 +64,7 @@ class ClusterNetworkConfig:
             return self.node_m_url
         raise KeyError(f"Unknown node identifier: '{node_id}'")
 
-    def get_node_port(self, node_id: str | NodeID) -> int:
+    def get_node_port(self, node_id: str | NodeID | NodeRole) -> int:
         """Extract listening port number from node URL."""
         url = self.get_node_url(node_id)
         parsed = urllib.parse.urlparse(url)
@@ -72,9 +72,16 @@ class ClusterNetworkConfig:
             return parsed.port
         return 443 if parsed.scheme == "https" else 80
 
-    def derive_node_key(self, node_id: str | NodeID) -> str:
+    def derive_node_key(self, node_id: str | NodeID | NodeRole) -> str:
         """Derive distinct per-node HMAC key from the master cluster secret."""
-        nid = node_id.value if isinstance(node_id, NodeID) else str(node_id).upper()
+        nid = node_id.value if hasattr(node_id, "value") else str(node_id).upper()
+        if nid in ("NODE_A", "PC_A", "PC-A"):
+            nid = NodeID.PC_A.value
+        elif nid in ("NODE_B", "PC_B", "PC-B"):
+            nid = NodeID.PC_B.value
+        elif nid in ("NODE_M", "MOBILE"):
+            nid = NodeID.MOBILE.value
+
         return hmac.new(
             self.cluster_secret.encode("utf-8"),
             f"sse-node-key:{nid}".encode(),

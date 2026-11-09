@@ -185,3 +185,20 @@
   * **Regression Suite Status:**
     - 199 passed out of 199 tests (100%), 0 warnings in application code, 0 ruff lint errors.
     - Memory profile: 0.12 MB peak heap RAM (< 80 MB ceiling).
+- **Milestone 25 (AIVA Autonomous Control Plane — Zero-Friction Programmatic Interface):**
+  * **Machine-First Agent Plane (`src/aiva/control_plane.py`):**
+    - Implemented `AivaActionResponse`: Immutable, typed response envelope with `to_compact_dict()` returning token-optimized JSON strictly under 350 characters (and under 250 characters for compute arbitration).
+    - Implemented `AivaAgentPlane`: Pure programmatic interface for AIVA parent intelligence eliminating human CLI/STDIN/getpass dependencies.
+    - **Hardware Arbitrage (`arbitrate_compute`):** Evaluates live hardware telemetry and VRAM headroom, applies Tier-1 IESDS OOM pruning, and returns compact JSON (< 250 chars).
+    - **Intent Resolution (`resolve_intent`):** Evaluates Bayesian EVPI vs clarification cost threshold, deciding `EXECUTE` (dominant intent) vs `CLARIFY` (prompt generation for ambiguous commands).
+    - **Swarm Construction (`build_system`):** Dispatches autonomous 6-agent software development locally on Node A or delegates remotely to Node B over the P2P mesh with guarded local fallback.
+    - **Programmatic Quorum Gate (`execute_governed_action`):** Enforces 2-of-3 threshold quorum for Level-3 irreversible operations; unilateral single signatures trigger `HALTED_QUORUM_DENIED`, while programmatic dual-signatures (PC-A + Mobile agent token) clear the gate with `APPROVED`.
+    - **Zero-Leak Handle Access (`get_secret_handle`, `scrub_text`):** Headless resolution of opaque `vault://` handles and text redaction scrubbing.
+  * **Cross-Layer Enhancements:**
+    - Exported `NodeRole` enum (`NODE_A`, `NODE_B`, `NODE_M`) in `sse.tri_node.router` and `sse.tri_node.sovereign_core`.
+    - Added `master_key` and `get_handle` support to `SecureCredentialVault` in `aiva.security.vault`.
+    - Added `current_role` and `shared_secret` parameter support to `TriNodeMeshClient`.
+    - Added `trusted_keys` injection to `AivaStrategicIntelligenceClient` in `sse.gateway.client`.
+  * **Test Suite Status (`tests/test_aiva/test_control_plane.py`):**
+    - 5 automated headless tests passing: `test_arbitrate_compute_headless`, `test_resolve_intent_headless`, `test_build_system_headless`, `test_governed_action_quorum_headless`, and `test_zero_leak_scrubbing_headless`.
+    - Overall test suite: 204 passed out of 204 tests (100% green), 0 ruff errors.

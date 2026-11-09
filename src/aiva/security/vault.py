@@ -31,11 +31,15 @@ class SecureCredentialVault:
     def __init__(
         self,
         vault_path: Path | str | None = None,
-        master_secret: str | None = None,
+        master_secret: str | bytes | None = None,
+        master_key: str | bytes | None = None,
         auto_load: bool = True,
     ) -> None:
         self.vault_path = Path(vault_path) if vault_path else Path(DEFAULT_VAULT_FILENAME)
-        self.master_secret = master_secret or os.getenv("AIVA_MASTER_SECRET", "aiva_sovereign_mesh_secret_2026")
+        resolved_secret = master_key if master_key is not None else master_secret
+        if isinstance(resolved_secret, bytes):
+            resolved_secret = resolved_secret.decode("utf-8", errors="replace")
+        self.master_secret = resolved_secret or os.getenv("AIVA_MASTER_SECRET", "aiva_sovereign_mesh_secret_2026")
         self._secrets: dict[str, bytes] = {}
         self._salt: bytes | None = None
 
@@ -51,6 +55,15 @@ class SecureCredentialVault:
             iterations=DEFAULT_ITERATIONS,
         )
         return kdf.derive(self.master_secret.encode("utf-8"))
+
+    @staticmethod
+    def format_handle(category: str, service: str, key: str) -> str:
+        """Construct canonical opaque handle URI."""
+        return f"vault://{category.strip()}/{service.strip()}/{key.strip()}"
+
+    def get_handle(self, category: str, service: str, key: str) -> str:
+        """Format and return canonical opaque handle URI without disclosing plaintext values."""
+        return self.format_handle(category, service, key)
 
     @staticmethod
     def validate_handle(handle: str) -> None:

@@ -11,6 +11,7 @@ Models the 7 core pillars of production autonomous systems:
 """
 
 from aiva.browser.controller import HeadlessBrowserSupervisor, VirtualDOMSession
+from aiva.control_plane import AivaActionResponse, AivaAgentPlane
 from aiva.governance.guardrails import AivaGuardrailGate, AutonomyTier
 from aiva.integrations.oauth_broker import OAuthBroker
 from aiva.memory.profile import AivaMemoryManager
@@ -18,6 +19,8 @@ from aiva.proactive.daemon import ProactiveDaemon
 from aiva.security.vault import SecureCredentialVault
 
 __all__ = [
+    "AivaActionResponse",
+    "AivaAgentPlane",
     "AivaGuardrailGate",
     "AivaMemoryManager",
     "AutonomyTier",

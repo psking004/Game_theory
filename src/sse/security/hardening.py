@@ -29,6 +29,9 @@ DEFAULT_CLUSTER_NODE_KEYS: dict[str, str] = {
     NodeID.PC_A.value: _derive_node_key(NodeID.PC_A.value),
     NodeID.PC_B.value: _derive_node_key(NodeID.PC_B.value),
     NodeID.MOBILE.value: _derive_node_key(NodeID.MOBILE.value),
+    "NODE_A": _derive_node_key(NodeID.PC_A.value),
+    "NODE_B": _derive_node_key(NodeID.PC_B.value),
+    "NODE_M": _derive_node_key(NodeID.MOBILE.value),
 }
 
 

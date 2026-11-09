@@ -25,6 +25,7 @@ from sse.tri_node.mesh_handlers import MeshActionDispatcher
 from sse.tri_node.sovereign_core import (
     CLUSTER_SHARED_SECRET,
     NodeID,
+    NodeRole,
     OperationalMode,
     SovereignDecisionCore,
     SovereignDecisionVerdict,
@@ -37,6 +38,14 @@ DEFAULT_NODE_PORTS: dict[str, int] = {
     NodeID.PC_B.value: 8202,
     NodeID.MOBILE.value: 8203,
 }
+
+__all__ = [
+    "DEFAULT_NODE_PORTS",
+    "MeshRequestHandler",
+    "MeshServer",
+    "NodeRole",
+    "P2PRouter",
+]
 
 
 class MeshRequestHandler(BaseHTTPRequestHandler):
