@@ -783,6 +783,134 @@ def worker_run_cmd(
     run_worker(host=host, port=port)
 
 
+node_app = typer.Typer(
+    name="node",
+    help="Manage Sovereign Tri-Node Mesh execution, air-gapped solving, and ledger synchronization.",
+    no_args_is_help=True,
+)
+app.add_typer(node_app, name="node")
+
+
+@node_app.command("run")
+def node_run_cmd(
+    role: str = typer.Option("PC_A", "--role", "-r", help="Node identity: PC_A, PC_B, or MOBILE"),
+    port: int | None = typer.Option(None, "--port", "-p", help="Port to listen on (defaults: 8201/8202/8203)"),
+    solo: bool = typer.Option(False, "--solo", help="Operate in air-gapped solo mode without mesh routing"),
+    host: str = typer.Option("0.0.0.0", "--host", help="Host address to bind to"),
+) -> None:
+    """Launch the sovereign node P2P router daemon."""
+    from sse.tri_node.router import DEFAULT_NODE_PORTS, P2PRouter
+
+    chosen_port = port or DEFAULT_NODE_PORTS.get(role.upper(), 8201)
+    mode_str = "SOLO" if solo else "MESH"
+    console.print(
+        f"[bold cyan]Launching Sovereign Node [[bold green]{role.upper()}[/bold green]] "
+        f"in [bold yellow]{mode_str}[/bold yellow] mode on {host}:{chosen_port}...[/bold cyan]"
+    )
+    router = P2PRouter(node_id=role.upper(), port=chosen_port, mode=mode_str)
+    try:
+        router.start_server(host=host, background=False)
+    except KeyboardInterrupt:
+        console.print("[dim]Stopping sovereign node server...[/dim]")
+        router.stop_server()
+
+
+@node_app.command("solve")
+def node_solve_cmd(
+    matrix: str = typer.Option(
+        "",
+        "--matrix",
+        "-m",
+        help="JSON string or path to game JSON containing 'u1' and 'u2' matrices",
+    ),
+    actions: str = typer.Option("", "--actions", "-a", help="Comma-separated action names for Player 1"),
+    node_id: str = typer.Option("PC_A", "--node-id", "-n", help="Executing node identity (PC_A, PC_B, MOBILE)"),
+    solo: bool = typer.Option(True, "--solo", help="Enforce air-gapped solo execution"),
+) -> None:
+    """Execute an instantaneous sovereign solve and seal the verdict into the local hash ledger."""
+    from sse.tri_node.ledger import SovereignLedger
+    from sse.tri_node.sovereign_core import SovereignDecisionCore
+
+    # Default canonical game: Prisoner's Dilemma if no matrix provided
+    u1 = [[3.0, 0.0], [5.0, 1.0]]
+    u2 = [[3.0, 5.0], [0.0, 1.0]]
+    act_p1 = ["Cooperate", "Defect"]
+    act_p2 = ["Cooperate", "Defect"]
+
+    if matrix:
+        mat_path = Path(matrix)
+        if mat_path.exists():
+            with open(mat_path, "r", encoding="utf-8") as f:
+                parsed = json.load(f)
+        else:
+            parsed = json.loads(matrix)
+
+        if isinstance(parsed, dict) and "u1" in parsed and "u2" in parsed:
+            u1 = parsed["u1"]
+            u2 = parsed["u2"]
+            if "actions_p1" in parsed:
+                act_p1 = parsed["actions_p1"]
+            if "actions_p2" in parsed:
+                act_p2 = parsed["actions_p2"]
+
+    if actions:
+        act_p1 = [a.strip() for a in actions.split(",") if a.strip()]
+
+    core = SovereignDecisionCore(node_id=node_id.upper(), mode="SOLO" if solo else "MESH")
+    ledger = SovereignLedger(node_id=node_id.upper())
+    prev_hash = ledger.get_latest_hash()
+
+    verdict = core.solve_matrix(
+        u1=u1,
+        u2=u2,
+        actions_p1=act_p1,
+        actions_p2=act_p2,
+        prev_hash=prev_hash,
+        airgapped_solo=solo,
+    )
+
+    # Append sealed record to append-only ledger
+    record = ledger.append_verdict(verdict)
+
+    # Format output table
+    table = Table(title=f"[bold cyan]Sovereign Solve ({node_id.upper()})[/bold cyan]", border_style="cyan")
+    table.add_column("Field", style="bold white")
+    table.add_column("Value", style="green")
+
+    table.add_row("Decision ID", verdict.decision_id)
+    table.add_row("Chosen Action", f"[bold green]{verdict.action_name}[/bold green] (index {verdict.action_idx})")
+    table.add_row("Expected Utility", f"{verdict.expected_utility:.3f}")
+    table.add_row("Worst-Case Regret", f"{verdict.worst_case_regret:.3f}")
+    table.add_row("Solver Tier", f"[bold yellow]{verdict.solver_tier}[/bold yellow]")
+    table.add_row("Grant Token", verdict.grant_token)
+    table.add_row("Ledger Block Hash", record["record_hash"][:16] + "...")
+    table.add_row("Execution Mode", verdict.mode)
+
+    console.print(table)
+    console.print(f"[bold dim]Compact Payload (< 350 chars):[/bold dim] {verdict.to_compact_payload()}")
+
+
+@node_app.command("sync")
+def node_sync_cmd(
+    peer_url: str = typer.Option(..., "--peer-url", "-p", help="Peer endpoint URL (e.g. http://192.168.1.50:8201)"),
+    node_id: str = typer.Option("PC_A", "--node-id", "-n", help="Local node identity (PC_A, PC_B, MOBILE)"),
+) -> None:
+    """Synchronize and verify hash ledgers with a remote sovereign peer."""
+    from sse.tri_node.router import P2PRouter
+
+    router = P2PRouter(node_id=node_id.upper())
+    console.print(f"[bold cyan]Synchronizing ledger with peer [green]{peer_url}[/green]...[/bold cyan]")
+    res = router.sync_with_peer(peer_url=peer_url)
+
+    if res.get("status") == "SYNCED":
+        console.print(
+            f"[bold green]Ledger synchronized successfully![/bold green] "
+            f"Merged {res.get('merged_count', 0)} foreign records. Latest hash: {res.get('latest_hash', '')[:16]}..."
+        )
+    else:
+        console.print(f"[bold red]Sync warning:[/bold red] Peer status {res.get('status')} ({res.get('error', '')})")
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint function returning POSIX exit code."""
     try:

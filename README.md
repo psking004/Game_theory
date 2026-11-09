@@ -1,9 +1,10 @@
 # Strategic Systems Engine (SSE)
 
-[![Tests](https://img.shields.io/badge/tests-144%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-151%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Memory Limit](https://img.shields.io/badge/RAM-%3C80MB-success.svg)]()
+[![Sovereign Mesh](https://img.shields.io/badge/Tri--Node-Zero--SPOF-blueviolet.svg)]()
 
 The **Strategic Systems Engine (SSE)** is an advanced computational software engine for formal mathematical game theory, equilibrium solving, dynamic simulation, multi-agent reinforcement learning, and multi-domain strategic modeling.
 
@@ -102,6 +103,15 @@ sse telemetry --format json
 
 # Launch the PC-B distributed execution worker service
 sse worker run --host 0.0.0.0 --port 8220
+
+# Sovereign Tri-Node Mesh execution (Air-Gapped Solo / P2P Mesh)
+sse node solve --node-id PC_A --solo
+sse node run --role PC_B --port 8202
+sse node sync --peer-url http://192.168.1.50:8202 --node-id PC_A
+
+# Standalone single-file zero-dependency execution (Mobile / Termux / Server)
+python sse_standalone.py doctor
+python sse_standalone.py solve
 ```
 
 ---
@@ -111,6 +121,7 @@ sse worker run --host 0.0.0.0 --port 8220
 - [Mathematical Verification Report](MATHEMATICAL_VERIFICATION_REPORT.md): Invariant checks across Lemke-Howson, Support Enumeration, Bayesian games, and ESS.
 - [Optimized Engine Benchmark](OPTIMIZED_ENGINE_BENCHMARK.md): Empirical benchmarks showing $< 0.45$ MB peak RAM, $< 0.15$ ms solver latency, and $71.8\%$ latency reduction.
 - [Domain Packs Verification Report](DOMAIN_PACKS_VERIFICATION_REPORT.md): Formal scenario verification for all 7 application domains.
+- [Tri-Node Sovereign Verification Report](TRI_NODE_SOVEREIGN_VERIFICATION.md): Zero-SPOF multi-tier cascades, append-only hash ledgers, tamper rejection, and air-gapped fallback metrics.
 
 ---
 

@@ -1,0 +1,326 @@
+"""Strategic Systems Engine - Peer-to-Peer Mesh Router.
+
+Lightweight, offline-first P2P communication and dispatch router for the Sovereign Tri-Node Mesh.
+Built exclusively using Python standard library (http.server, threading, urllib.request).
+Guarantees zero-hang timeout fallback to local execution on network partitions.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import time
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+from sse.tri_node.ledger import SovereignLedger
+from sse.tri_node.sovereign_core import (
+    CLUSTER_SHARED_SECRET,
+    NodeID,
+    OperationalMode,
+    SovereignDecisionCore,
+    SovereignDecisionVerdict,
+)
+
+logger = logging.getLogger("sse.tri_node.router")
+
+DEFAULT_NODE_PORTS: dict[str, int] = {
+    NodeID.PC_A.value: 8201,
+    NodeID.PC_B.value: 8202,
+    NodeID.MOBILE.value: 8203,
+}
+
+
+class MeshRequestHandler(BaseHTTPRequestHandler):
+    """Zero-dependency HTTP request handler for sovereign mesh communication."""
+
+    server: MeshServer  # Type hint for custom server attributes
+
+    def log_message(self, format: str, *args: Any) -> None:
+        """Silence standard stderr logging to preserve clean console output."""
+
+    def _send_json(self, status_code: int, data: dict[str, Any]) -> None:
+        raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self) -> None:
+        """Route GET requests for health and ledger records."""
+        path = self.path.split("?")[0]
+        if path == "/health":
+            latest_hash = self.server.ledger.get_latest_hash()
+            self._send_json(
+                200,
+                {
+                    "status": "READY",
+                    "node_id": self.server.node_id,
+                    "mode": self.server.mode,
+                    "port": self.server.server_address[1],
+                    "latest_hash": latest_hash,
+                    "timestamp": time.time(),
+                },
+            )
+        elif path in ("/mesh/records", "/mesh/ledger"):
+            records = self.server.ledger.read_records()
+            self._send_json(
+                200,
+                {
+                    "node_id": self.server.node_id,
+                    "record_count": len(records),
+                    "records": [json.dumps(r, separators=(",", ":")) for r in records],
+                },
+            )
+        else:
+            self._send_json(404, {"error": "Endpoint not found"})
+
+    def do_POST(self) -> None:
+        """Route POST requests for mutual compute dispatch and ledger synchronization."""
+        path = self.path.split("?")[0]
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON payload"})
+            return
+
+        if path == "/mesh/dispatch":
+            u1 = payload.get("u1")
+            u2 = payload.get("u2")
+            if not u1 or not u2:
+                self._send_json(422, {"error": "Payload must contain 'u1' and 'u2' matrices"})
+                return
+
+            act_p1 = payload.get("actions_p1")
+            act_p2 = payload.get("actions_p2")
+            dec_id = payload.get("decision_id")
+            prev_hash = self.server.ledger.get_latest_hash()
+
+            verdict = self.server.core.solve_matrix(
+                u1=u1,
+                u2=u2,
+                actions_p1=act_p1,
+                actions_p2=act_p2,
+                decision_id=dec_id,
+                prev_hash=prev_hash,
+                airgapped_solo=False,
+            )
+
+            # Append to local ledger
+            self.server.ledger.append_verdict(verdict, extra_meta={"dispatched_via": "mesh"})
+
+            self._send_json(
+                200,
+                {
+                    "status": "COMPLETED",
+                    "verdict": json.loads(verdict.to_compact_payload()),
+                },
+            )
+
+        elif path == "/mesh/sync":
+            incoming_lines = payload.get("records", [])
+            merged_count = self.server.ledger.merge_remote_records(incoming_lines)
+
+            # Send back all local records for reciprocal synchronization
+            all_records = self.server.ledger.read_records()
+            all_lines = [json.dumps(r, separators=(",", ":")) for r in all_records]
+
+            self._send_json(
+                200,
+                {
+                    "status": "SYNCED",
+                    "merged_count": merged_count,
+                    "latest_hash": self.server.ledger.get_latest_hash(),
+                    "records": all_lines,
+                },
+            )
+        else:
+            self._send_json(404, {"error": "Endpoint not found"})
+
+
+class MeshServer(ThreadingHTTPServer):
+    """Custom ThreadingHTTPServer holding references to sovereign core and ledger."""
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        RequestHandlerClass: type[BaseHTTPRequestHandler],
+        node_id: str,
+        mode: str,
+        core: SovereignDecisionCore,
+        ledger: SovereignLedger,
+    ) -> None:
+        self.node_id = node_id
+        self.mode = mode
+        self.core = core
+        self.ledger = ledger
+        self.daemon_threads = True
+        super().__init__(server_address, RequestHandlerClass)
+
+
+class P2PRouter:
+    """Manages peer discovery, compute offload, and zero-hang offline fallback."""
+
+    def __init__(
+        self,
+        node_id: str | NodeID = NodeID.PC_A,
+        port: int | None = None,
+        mode: str | OperationalMode = OperationalMode.SOLO,
+        ledger_path: str | Path | None = None,
+        secret: str = CLUSTER_SHARED_SECRET,
+    ) -> None:
+        self.node_id = str(node_id.value if isinstance(node_id, NodeID) else node_id)
+        self.mode = str(mode.value if isinstance(mode, OperationalMode) else mode)
+        self.port = port or DEFAULT_NODE_PORTS.get(self.node_id, 8201)
+        self.secret = secret
+
+        self.core = SovereignDecisionCore(node_id=self.node_id, mode=self.mode, secret=self.secret)
+        self.ledger = SovereignLedger(node_id=self.node_id, ledger_path=ledger_path)
+        self._server: MeshServer | None = None
+        self._thread: threading.Thread | None = None
+
+    def start_server(self, host: str = "0.0.0.0", background: bool = True) -> MeshServer:
+        """Start the mesh HTTP server daemon."""
+        server_address = (host, self.port)
+        self._server = MeshServer(
+            server_address=server_address,
+            RequestHandlerClass=MeshRequestHandler,
+            node_id=self.node_id,
+            mode=self.mode,
+            core=self.core,
+            ledger=self.ledger,
+        )
+
+        if background:
+            self._thread = threading.Thread(
+                target=self._server.serve_forever,
+                name=f"P2PRouter_{self.node_id}",
+                daemon=True,
+            )
+            self._thread.start()
+        else:
+            self._server.serve_forever()
+
+        return self._server
+
+    def stop_server(self) -> None:
+        """Cleanly shutdown the server."""
+        if self._server is not None:
+            self._server.shutdown()
+            self._server.server_close()
+            self._server = None
+
+    def dispatch_task(
+        self,
+        peer_url: str | None,
+        u1: list[list[float]],
+        u2: list[list[float]],
+        actions_p1: list[str] | None = None,
+        actions_p2: list[str] | None = None,
+        timeout: float = 1.5,
+    ) -> SovereignDecisionVerdict:
+        """Attempt to dispatch compute to peer; fall back instantly to local sovereign execution on failure."""
+        if peer_url and self.mode != OperationalMode.SOLO.value:
+            url = f"{peer_url.rstrip('/')}/mesh/dispatch"
+            req_data = {
+                "u1": u1,
+                "u2": u2,
+                "actions_p1": actions_p1,
+                "actions_p2": actions_p2,
+            }
+            body = json.dumps(req_data, separators=(",", ":")).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        res_json = json.loads(resp.read().decode("utf-8"))
+                        v_data = res_json.get("verdict", {})
+                        return SovereignDecisionVerdict(
+                            node_id=v_data["node"],
+                            decision_id=v_data["dec_id"],
+                            action_idx=v_data["act"],
+                            action_name=v_data["name"],
+                            expected_utility=v_data["util"],
+                            worst_case_regret=v_data["regret"],
+                            solver_tier=v_data["tier"],
+                            grant_token=v_data["grant"],
+                            record_hash_16=v_data["hash"],
+                            mode="MESH",
+                        )
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                logger.warning(
+                    "Peer %s unreachable (%s). Initiating instant local sovereign fallback on %s.",
+                    peer_url,
+                    exc,
+                    self.node_id,
+                )
+
+        # Local Sovereign Execution Fallback (Zero socket hanging, 100% resilient)
+        prev_hash = self.ledger.get_latest_hash()
+        verdict = self.core.solve_matrix(
+            u1=u1,
+            u2=u2,
+            actions_p1=actions_p1,
+            actions_p2=actions_p2,
+            prev_hash=prev_hash,
+            airgapped_solo=True,
+        )
+        self.ledger.append_verdict(
+            verdict,
+            extra_meta={"fallback_from": peer_url or "NONE"},
+        )
+        return verdict
+
+    def sync_with_peer(self, peer_url: str, timeout: float = 1.5) -> dict[str, Any]:
+        """Bidirectionally synchronize ledger records with a remote peer node."""
+        url = f"{peer_url.rstrip('/')}/mesh/sync"
+        local_records = self.ledger.read_records()
+        local_lines = [json.dumps(r, separators=(",", ":")) for r in local_records]
+
+        req_data = {"records": local_lines}
+        body = json.dumps(req_data, separators=(",", ":")).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status == 200:
+                    res_json = json.loads(resp.read().decode("utf-8"))
+                    remote_records = res_json.get("records", [])
+                    merged = self.ledger.merge_remote_records(remote_records)
+                    return {
+                        "status": "SYNCED",
+                        "peer_url": peer_url,
+                        "merged_count": merged,
+                        "latest_hash": self.ledger.get_latest_hash(),
+                    }
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            return {
+                "status": "PEER_OFFLINE",
+                "peer_url": peer_url,
+                "error": str(exc),
+                "latest_hash": self.ledger.get_latest_hash(),
+            }
+
+        return {
+            "status": "FAILED",
+            "peer_url": peer_url,
+            "latest_hash": self.ledger.get_latest_hash(),
+        }

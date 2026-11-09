@@ -124,3 +124,13 @@ def test_cli_telemetry() -> None:
     assert data["node_id"] == "PC-A"
     assert "ram_used_gb" in data
     assert "vram_available_gb" in data
+
+
+def test_cli_node_solve() -> None:
+    """Verifies `sse node solve` executes sovereign solve and outputs compact payload."""
+    res = runner.invoke(app, ["node", "solve", "--node-id", "PC_A", "--solo"])
+    assert res.exit_code == 0
+    assert "Sovereign Solve (PC_A)" in res.output
+    assert "Defect" in res.output
+    assert "T1_IESDS" in res.output
+    assert "Compact Payload" in res.output
