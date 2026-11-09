@@ -171,3 +171,17 @@
   * **Live Mesh Runbook Integration Test Suite (`tests/test_aiva/test_live_mesh_runbook.py`):**
     - 3 tests validating cluster config, CLI vault flow, and live 3-node loopback interaction (Node A task delegation $\to$ Node B execution $\to$ Node M notification $\to$ Level 3 dual-node quorum approval).
   * **Overall Test Suite: 198 passed out of 198 tests (100%), 0 ruff lint errors.**
+- **Milestone 24 (Live Tri-Node Physical Cluster Ignition & Full 4-Phase Verification Harness):**
+  * **Wire Protocol & Standalone Node Alignment (`sse_standalone.py`):**
+    - Canonicalized `TriNodeFrame.canonical_bytes()` in `sse_standalone.py` to match `src/sse/tri_node/frame.py` deterministic formatting (`sender_node_id:action:timestamp:nonce:canonical_payload`), resolving cross-node HMAC-SHA256 signature verification parity.
+    - Added polymorphic `append_raw_record()` and `append_record()` to `SovereignLedger` in both `src/sse/tri_node/ledger.py` and `sse_standalone.py` for arbitrary governance, notification, and audit block hashing.
+    - Added HTTP request routing for `action in ("notify_brief", "notify")` on standalone mobile nodes, auto-committing signed push notifications to the local hash ledger.
+  * **Automated Cluster Ignition Harness (`scripts/live_cluster_ignition.py`):**
+    - Orchestrates end-to-end multi-process ignition across all 3 nodes (Node A on 8201, Node B on 8202, Mobile Node M on 8203) with graceful teardown.
+    - **Phase 1 (Discovery):** Mutual peer inspection between Node A $\to$ Node B and Node A $\to$ Node M with live CPU, RAM, status, and ledger head verification (`fallback_local: False`).
+    - **Phase 2 (Vault & Accounts):** Vault initialized with PBKDF2 (100k iters) and AES-256-GCM; GitHub and Google tokens sealed under opaque handles (`vault://oauth/github/access_token`, `vault://oauth/google/access_token`) with 0% plaintext leakage.
+    - **Phase 3 (Proactive Brief):** PC-B background supervisor synthesized 169-character markdown brief (< 500 chars limit) reflecting 198/199 passing tests and dispatched signed `TriNodeFrame` over port 8203 to Mobile Node M.
+    - **Phase 4 (Quorum Gate):** Frozen Level 3 irreversible action (`push_main`); single-signature rejected (1-of-3); dual HMAC-SHA256 signature (PC-A + Mobile) cleared gate, executed payload, and committed immutable audit block to `HardenedLedger`.
+  * **Regression Suite Status:**
+    - 199 passed out of 199 tests (100%), 0 warnings in application code, 0 ruff lint errors.
+    - Memory profile: 0.12 MB peak heap RAM (< 80 MB ceiling).

@@ -109,6 +109,43 @@ class SovereignLedger:
 
         return record
 
+    def append_raw_record(self, record_data: dict[str, Any]) -> dict[str, Any]:
+        """Append an arbitrary record payload (e.g. notifications, audits) into the hash chain."""
+        prev_hash = self.get_latest_hash()
+        now = float(record_data.get("timestamp", time.time()))
+        dec_id = str(record_data.get("decision_id", f"rec_{int(now * 1000)}"))
+        payload = record_data.get("payload", {})
+
+        record_hash = compute_record_hash(
+            timestamp=now,
+            prev_hash=prev_hash,
+            node_id=self.node_id,
+            decision_id=dec_id,
+            payload=payload,
+        )
+
+        record = {
+            "timestamp": round(now, 3),
+            "decision_id": dec_id,
+            "node_id": self.node_id,
+            "payload": payload,
+            "prev_hash": prev_hash,
+            "record_hash": record_hash,
+        }
+
+        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.ledger_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, separators=(",", ":")) + "\n")
+            f.flush()
+
+        return record
+
+    def append_record(self, item: Any) -> dict[str, Any]:
+        """Polymorphic helper that appends a verdict or raw dictionary record."""
+        if isinstance(item, dict):
+            return self.append_raw_record(item)
+        return self.append_verdict(item)
+
     def read_records(self) -> list[dict[str, Any]]:
         """Read all ledger records from the local file."""
         if not self.ledger_path.exists():

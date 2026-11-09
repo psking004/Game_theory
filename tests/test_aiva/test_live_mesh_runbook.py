@@ -220,3 +220,36 @@ def test_live_tri_node_mesh_and_quorum_runbook() -> None:
             router_a.stop_server()
             router_b.stop_server()
             router_m.stop_server()
+
+
+def test_physical_cluster_ignition_phases_1_to_4() -> None:
+    """Verifies complete physical cluster ignition across all 4 operational phases."""
+    from scripts.live_cluster_ignition import (
+        run_phase_1_startup_and_discovery,
+        run_phase_2_vault_and_accounts,
+        run_phase_3_proactive_brief,
+        run_phase_4_live_quorum_verification,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        temp_dir = Path(tmp_dir)
+
+        # Phase 1: Startup & Peer Discovery
+        router_a, router_b, router_m = run_phase_1_startup_and_discovery(temp_dir)
+
+        try:
+            # Phase 2: Zero-Leak Vault & Accounts
+            run_phase_2_vault_and_accounts(temp_dir)
+
+            # Phase 3: Proactive Brief Synthesis & Push to Node M
+            cycle_res = run_phase_3_proactive_brief(temp_dir, router_b)
+            assert cycle_res["status"] == "DISPATCHED"
+            assert cycle_res["pushed_to_mobile"] is True
+
+            # Phase 4: Quorum Verification (1-sig reject, dual-sig execute & audit)
+            run_phase_4_live_quorum_verification(temp_dir)
+
+        finally:
+            router_a.stop_server()
+            router_b.stop_server()
+            router_m.stop_server()

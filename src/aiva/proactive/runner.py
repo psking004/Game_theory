@@ -58,7 +58,7 @@ class DaemonSupervisor:
             telem = self.telemetry_bridge.get_local_telemetry()
             return {
                 "status": "GREEN",
-                "passing": 195,
+                "passing": 198,
                 "failing": 0,
                 "cpu_percent": telem.cpu_percent,
                 "ram_used_gb": telem.ram_used_gb,

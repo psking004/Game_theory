@@ -101,14 +101,9 @@ class TriNodeFrame:
             self.nonce = uuid.uuid4().hex[:12]
 
     def canonical_bytes(self) -> bytes:
-        data = {
-            "sender_node_id": self.sender_node_id,
-            "action": self.action,
-            "payload": self.payload,
-            "timestamp": round(self.timestamp, 3),
-            "nonce": self.nonce,
-        }
-        return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        canonical_payload = json.dumps(self.payload, sort_keys=True, separators=(",", ":"))
+        raw = f"{self.sender_node_id}:{self.action}:{self.timestamp:.3f}:{self.nonce}:{canonical_payload}"
+        return raw.encode("utf-8")
 
     def sign(self, secret: str = CLUSTER_SHARED_SECRET) -> str:
         sig = hmac.new(secret.encode("utf-8"), self.canonical_bytes(), hashlib.sha256).hexdigest()
@@ -453,6 +448,43 @@ class SovereignLedger:
 
         return record
 
+    def append_raw_record(self, record_data: dict[str, Any]) -> dict[str, Any]:
+        """Append an arbitrary record payload (e.g. notifications, audits) into the hash chain."""
+        prev_hash = self.get_latest_hash()
+        now = float(record_data.get("timestamp", time.time()))
+        dec_id = str(record_data.get("decision_id", f"rec_{int(now * 1000)}"))
+        payload = record_data.get("payload", {})
+
+        record_hash = compute_record_hash(
+            timestamp=now,
+            prev_hash=prev_hash,
+            node_id=self.node_id,
+            decision_id=dec_id,
+            payload=payload,
+        )
+
+        record = {
+            "timestamp": round(now, 3),
+            "decision_id": dec_id,
+            "node_id": self.node_id,
+            "payload": payload,
+            "prev_hash": prev_hash,
+            "record_hash": record_hash,
+        }
+
+        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.ledger_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, separators=(",", ":")) + "\n")
+            f.flush()
+
+        return record
+
+    def append_record(self, item: Any) -> dict[str, Any]:
+        """Polymorphic helper that appends a verdict or raw dictionary record."""
+        if isinstance(item, dict):
+            return self.append_raw_record(item)
+        return self.append_verdict(item)
+
     def read_records(self) -> list[dict[str, Any]]:
         """Read all ledger records from disk."""
         if not self.ledger_path.exists():
@@ -762,6 +794,32 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     self._send_json(403, {"error": "SANDBOX_VIOLATION", "details": str(pe)})
                 except Exception as exc:
                     self._send_json(500, {"error": "BUILD_FAILED", "details": str(exc)})
+                return
+
+            if action in ("notify_brief", "notify"):
+                now = time.time()
+                brief_payload = action_payload if isinstance(action_payload, dict) else {"content": str(action_payload)}
+                record_data = {
+                    "decision_id": f"notify_{int(now * 1000)}",
+                    "timestamp": now,
+                    "payload": {
+                        "type": "PUSH_NOTIFICATION",
+                        "action": action,
+                        "data": brief_payload,
+                    },
+                }
+                if hasattr(self.server.ledger, "append_record"):
+                    self.server.ledger.append_record(record_data)
+
+                self._send_json(
+                    200,
+                    {
+                        "status": "RECEIVED",
+                        "node_id": self.server.node_id,
+                        "action": action,
+                        "received_at": now,
+                    },
+                )
                 return
 
             mat_dict = action_payload if isinstance(action_payload, dict) and "u1" in action_payload else payload
