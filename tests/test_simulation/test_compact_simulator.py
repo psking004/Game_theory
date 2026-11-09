@@ -127,3 +127,4 @@ def test_o1_memory_flatness_across_10k_rounds() -> None:
     # The memory growth between 1,000 rounds and 10,000 rounds must not exceed 250 KB
     growth_bytes = mem_checkpoints[2] - mem_checkpoints[0]
     assert growth_bytes < 250 * 1024, f"Memory growth too high: {growth_bytes} bytes"
+

@@ -1,16 +1,26 @@
-"""Social systems domain extension package."""
+"""Social domain extension package."""
 
+from sse.domains.social.adapters import SocialSystemsAdapter
+from sse.domains.social.models import (
+    HawkDoveConflictGame,
+    StagHuntGame,
+    StrategicVotingGame,
+)
 from sse.domains.social.scenarios import (
     condorcet_voting,
     hawk_dove,
     stag_hunt,
+)
+from sse.domains.social.voting import (
+    OstromCommonPoolGovernance,
+    WeightedVotingBody,
 )
 from sse.models import FiniteNormalFormGame
 
 
 class SocialSystemsDomain:
     name = "social"
-    description = "Strategic voting, Hawk-Dove conflict, and Stag Hunt social coordination dilemmas."
+    description = "Voting power indices, legislative coalitions, Hawk-Dove, and commons governance games."
 
     def list_scenarios(self) -> list[str]:
         return [
@@ -26,6 +36,19 @@ class SocialSystemsDomain:
             "condorcet_voting": condorcet_voting,
         }
         if name not in factories:
-            raise KeyError(f"Scenario '{name}' not found in social systems domain.")
+            raise KeyError(f"Scenario '{name}' not found in social domain.")
         return factories[name]()
 
+
+__all__ = [
+    "HawkDoveConflictGame",
+    "OstromCommonPoolGovernance",
+    "SocialSystemsAdapter",
+    "SocialSystemsDomain",
+    "StagHuntGame",
+    "StrategicVotingGame",
+    "WeightedVotingBody",
+    "condorcet_voting",
+    "hawk_dove",
+    "stag_hunt",
+]

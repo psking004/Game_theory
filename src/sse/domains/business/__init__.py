@@ -1,16 +1,26 @@
-"""Business strategy domain extension package."""
+"""Business domain extension package."""
 
+from sse.domains.business.adapters import BusinessStrategyAdapter
+from sse.domains.business.models import (
+    MarketEntryGame,
+    PricingCompetitionGame,
+    StrategicInvestmentGame,
+)
 from sse.domains.business.scenarios import (
     market_entry_deterrence,
     price_war,
     rd_investment_race,
+)
+from sse.domains.business.strategy import (
+    DixitEntryPreemption,
+    TwoSidedPlatformPricing,
 )
 from sse.models import FiniteNormalFormGame
 
 
 class BusinessDomain:
     name = "business"
-    description = "Strategic pricing wars, market entry deterrence, and R&D investment competition."
+    description = "Competitive pricing, market entry deterrence, and R&D investment games."
 
     def list_scenarios(self) -> list[str]:
         return [
@@ -29,3 +39,16 @@ class BusinessDomain:
             raise KeyError(f"Scenario '{name}' not found in business domain.")
         return factories[name]()
 
+
+__all__ = [
+    "BusinessDomain",
+    "BusinessStrategyAdapter",
+    "DixitEntryPreemption",
+    "MarketEntryGame",
+    "PricingCompetitionGame",
+    "StrategicInvestmentGame",
+    "TwoSidedPlatformPricing",
+    "market_entry_deterrence",
+    "price_war",
+    "rd_investment_race",
+]

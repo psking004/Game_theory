@@ -1,5 +1,18 @@
 """Transportation domain extension package."""
 
+from sse.domains.transportation.adapters import TransportationDomainAdapter
+from sse.domains.transportation.congestion import (
+    BraessParadoxDetector,
+    NetworkEdge,
+    NetworkRoute,
+    PriceOfAnarchy,
+    WardropUserEquilibrium,
+)
+from sse.domains.transportation.models import (
+    BraessParadoxGame,
+    CommuteCongestionGame,
+    TrafficRouteChoiceGame,
+)
 from sse.domains.transportation.scenarios import (
     braess_paradox,
     corridor_peak_spreading,
@@ -10,7 +23,7 @@ from sse.models import FiniteNormalFormGame
 
 class TransportationDomain:
     name = "transportation"
-    description = "Traffic route choice, Braess's paradox network equilibria, and departure time peak spreading."
+    description = "Traffic congestion, Braess's paradox, and commute departure time games."
 
     def list_scenarios(self) -> list[str]:
         return [
@@ -29,3 +42,19 @@ class TransportationDomain:
             raise KeyError(f"Scenario '{name}' not found in transportation domain.")
         return factories[name]()
 
+
+__all__ = [
+    "BraessParadoxDetector",
+    "BraessParadoxGame",
+    "CommuteCongestionGame",
+    "NetworkEdge",
+    "NetworkRoute",
+    "PriceOfAnarchy",
+    "TrafficRouteChoiceGame",
+    "TransportationDomain",
+    "TransportationDomainAdapter",
+    "WardropUserEquilibrium",
+    "braess_paradox",
+    "corridor_peak_spreading",
+    "two_route_commute",
+]

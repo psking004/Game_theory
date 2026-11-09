@@ -1,16 +1,27 @@
 """Logistics domain extension package."""
 
+from sse.domains.logistics.adapters import LogisticsDomainAdapter
+from sse.domains.logistics.models import (
+    CongestionRoutingGame,
+    MultiPartySchedulingGame,
+    SharedWarehouseAllocationGame,
+)
 from sse.domains.logistics.scenarios import (
     dock_scheduling,
     shared_warehouse_allocation,
     simple_freight_routing,
+)
+from sse.domains.logistics.supply_chain import (
+    ClusterComputeRoutingGame,
+    ComputeNodeProfile,
+    MultiEchelonInventoryGame,
 )
 from sse.models import FiniteNormalFormGame
 
 
 class LogisticsDomain:
     name = "logistics"
-    description = "Freight routing congestion, warehouse resource allocation, and multi-party dock scheduling."
+    description = "Freight routing, warehouse space allocation, and dock scheduling games."
 
     def list_scenarios(self) -> list[str]:
         return [
@@ -29,3 +40,17 @@ class LogisticsDomain:
             raise KeyError(f"Scenario '{name}' not found in logistics domain.")
         return factories[name]()
 
+
+__all__ = [
+    "ClusterComputeRoutingGame",
+    "ComputeNodeProfile",
+    "CongestionRoutingGame",
+    "LogisticsDomain",
+    "LogisticsDomainAdapter",
+    "MultiEchelonInventoryGame",
+    "MultiPartySchedulingGame",
+    "SharedWarehouseAllocationGame",
+    "dock_scheduling",
+    "shared_warehouse_allocation",
+    "simple_freight_routing",
+]

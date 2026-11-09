@@ -121,3 +121,4 @@ tests\test_world_model\test_world_model.py ......                        [100%]
 - [x] **Invariant 3 (O(1) Memory Streamed Simulation):** Zero trajectory list accumulation, flat memory profile across 10,000+ rounds.
 - [x] **Invariant 4 (Character Budget Strictness):** 100% of serialized verdicts $< 400$ characters and $< 1.2$ KB.
 - [x] **Invariant 5 (Mathematical Faithfulness):** Preserves strategic equilibria and strict dominance under affine scaling and $L_2$ cluster compaction.
+
