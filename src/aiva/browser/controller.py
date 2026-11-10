@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from aiva.security.vault import SecureCredentialVault
+from aiva.security.vault import SecureCredentialVault, zeroize_buffer
 from sse.swarm.security_sandbox import SandboxedWorkspaceGuard
 
 logger = logging.getLogger("aiva.browser.controller")
@@ -245,7 +245,9 @@ class HeadlessBrowserSupervisor:
             )
             return success
         finally:
-            # Scrub temporary in-process string reference
+            # Zeroize mutable secret buffer immediately after DOM injection
+            if isinstance(raw_secret, bytearray):
+                zeroize_buffer(raw_secret)
             del raw_secret
 
     def type_text(self, context_id: str, selector: str, text: str) -> bool:

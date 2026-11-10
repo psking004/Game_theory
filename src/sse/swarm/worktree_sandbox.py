@@ -8,7 +8,6 @@ and strict directory confinement via SandboxedWorkspaceGuard.
 from __future__ import annotations
 
 import contextlib
-import os
 import shutil
 import subprocess
 import tempfile
@@ -16,7 +15,7 @@ import uuid
 from pathlib import Path
 from typing import Self
 
-from sse.swarm.security_sandbox import SandboxedWorkspaceGuard
+from sse.swarm.security_sandbox import SandboxedWorkspaceGuard, get_sanitized_environment
 
 
 class GitWorktreeSandbox:
@@ -132,12 +131,15 @@ class GitWorktreeSandbox:
                 if not status_res.stdout.strip():
                     return self._checkpoints[-1] if self._checkpoints else self._initial_commit
 
-                # Commit changes
-                author_env = dict(os.environ)
-                author_env["GIT_AUTHOR_NAME"] = "SSE-Swarm"
-                author_env["GIT_AUTHOR_EMAIL"] = "swarm@sse.local"
-                author_env["GIT_COMMITTER_NAME"] = "SSE-Swarm"
-                author_env["GIT_COMMITTER_EMAIL"] = "swarm@sse.local"
+                # Commit changes with sanitized environment (prevents host secret leakage to git hooks)
+                author_env = get_sanitized_environment(
+                    extra_env={
+                        "GIT_AUTHOR_NAME": "SSE-Swarm",
+                        "GIT_AUTHOR_EMAIL": "swarm@sse.local",
+                        "GIT_COMMITTER_NAME": "SSE-Swarm",
+                        "GIT_COMMITTER_EMAIL": "swarm@sse.local",
+                    }
+                )
 
                 commit_res = subprocess.run(
                     ["git", "commit", "-m", message, "--no-gpg-sign"],
@@ -272,8 +274,6 @@ class GitWorktreeSandbox:
                 with contextlib.suppress(OSError):
                     p.unlink()
 
-        # Re-populate from snapshot
+        # Re-populate strictly through SandboxedWorkspaceGuard
         for rel, content in snapshot.items():
-            full = self.worktree_dir / rel
-            full.parent.mkdir(parents=True, exist_ok=True)
-            full.write_text(content, encoding="utf-8")
+            self.guard.safe_write(rel, content)

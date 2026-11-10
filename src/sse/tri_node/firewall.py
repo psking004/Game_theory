@@ -1,7 +1,8 @@
 """Strategic Systems Engine - P2P Mesh Ingress Rate Limiter & Payload Firewall.
 
-Enforces strict request size ceilings, header sanitization, IP/node token bucket
-rate limiting, JSON schema guards, and clock skew mitigation for P2P mesh endpoints.
+Enforces strict request size ceilings, MIME header enforcement, IP/node rate limiting
+(30 requests/minute sliding-window & token bucket), JSON schema guards, replay protection
+via NonceTracker, and bidirectional clock skew mitigation (<= 60s) for P2P mesh endpoints.
 Zero external dependencies (pure standard library).
 """
 
@@ -15,6 +16,7 @@ import threading
 import time
 from typing import Any
 
+from sse.security.hardening import NonceTracker
 from sse.tri_node.sovereign_core import CLUSTER_SHARED_SECRET, NodeID
 
 
@@ -23,9 +25,9 @@ class MeshFirewallConfig:
     """Security firewall configuration for P2P Mesh endpoints."""
 
     max_payload_bytes: int = 1_048_576  # 1 MB maximum payload ceiling
-    max_clock_skew_sec: float = 60.0  # 60s max acceptable drift
-    rate_limit_per_second: float = 50.0  # 50 req/sec steady state
-    rate_limit_burst: int = 100  # 100 req burst headroom
+    max_clock_skew_sec: float = 60.0  # 60s bidirectional max acceptable drift
+    rate_limit_per_second: float = 0.5  # 30 requests/minute steady state
+    rate_limit_burst: int = 30  # 30 requests/minute burst headroom
     allowed_node_ids: set[str] = dataclasses.field(
         default_factory=lambda: {NodeID.PC_A.value, NodeID.PC_B.value, NodeID.MOBILE.value}
     )
@@ -37,7 +39,7 @@ class MeshFirewallConfig:
 class PeerRateLimiter:
     """Token bucket rate limiter tracking requests per peer IP or node identity."""
 
-    def __init__(self, rate_per_second: float = 50.0, burst: int = 100) -> None:
+    def __init__(self, rate_per_second: float = 0.5, burst: int = 30) -> None:
         self.rate = float(rate_per_second)
         self.burst = float(burst)
         self._buckets: dict[str, tuple[float, float]] = {}  # peer_id -> (tokens, last_update)
@@ -108,9 +110,13 @@ class MeshPayloadFirewall:
             rate_per_second=self.config.rate_limit_per_second,
             burst=self.config.rate_limit_burst,
         )
+        self.nonce_tracker = NonceTracker(window_ttl_sec=self.config.max_clock_skew_sec)
 
     def validate_headers(self, headers: Any, content_length: int) -> tuple[bool, str]:
         """Validate HTTP headers and content length bounds before reading request stream."""
+        if content_length < 0:
+            return False, "INVALID_CONTENT_LENGTH: Negative Content-Length is not permitted."
+
         if content_length > self.config.max_payload_bytes:
             return (
                 False,
@@ -122,10 +128,10 @@ class MeshPayloadFirewall:
             if hasattr(headers, "get"):
                 content_type = headers.get("Content-Type", "") or headers.get("content-type", "")
 
-            if content_type and "application/json" not in content_type.lower():
+            if not content_type or "application/json" not in content_type.lower():
                 return (
                     False,
-                    f"INVALID_CONTENT_TYPE: Expected 'application/json', got '{content_type}'",
+                    f"INVALID_CONTENT_TYPE: Expected 'application/json', got '{content_type or 'MISSING'}'",
                 )
 
         return True, "OK"
@@ -135,7 +141,7 @@ class MeshPayloadFirewall:
         raw_body: bytes,
         peer_ip: str = "127.0.0.1",
     ) -> tuple[bool, dict[str, Any] | None, str]:
-        """Validate raw request body against size, rate-limits, format, node identity, and time skew.
+        """Validate raw request body against size, rate-limits, format, identity, skew, and nonce replay.
 
         Returns:
             (is_valid, parsed_dict_or_None, reason_or_status)
@@ -177,8 +183,9 @@ class MeshPayloadFirewall:
                     f"UNRECOGNIZED_NODE_ID: Sender '{sender_id}' is not in authorized cluster nodes: {self.config.allowed_node_ids}",
                 )
 
-        # 5. Timestamp and Clock Skew verification (if specified in envelope)
+        # 5. Bidirectional Timestamp and Clock Skew verification
         ts = payload.get("timestamp")
+        ts_float: float | None = None
         if ts is not None:
             try:
                 ts_float = float(ts)
@@ -193,7 +200,20 @@ class MeshPayloadFirewall:
             except (ValueError, TypeError):
                 return False, None, "MALFORMED_TIMESTAMP: Value could not be parsed as float epoch seconds"
 
-        # 6. Signature validation (if enforced)
+        # 6. Sliding-window Nonce Replay Protection
+        if "nonce" in payload and payload["nonce"] is not None:
+            valid_nonce, nonce_reason = self.nonce_tracker.validate_and_record(
+                str(payload["nonce"]),
+                timestamp=ts_float,
+            )
+            if not valid_nonce:
+                return (
+                    False,
+                    None,
+                    f"REPLAY_DETECTED: {nonce_reason}",
+                )
+
+        # 7. Signature validation (if enforced)
         if self.config.enforce_signatures:
             sig = payload.get("signature")
             if not sig:

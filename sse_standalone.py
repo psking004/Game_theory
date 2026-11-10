@@ -15,10 +15,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import hmac
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -585,8 +587,102 @@ class SovereignLedger:
 
 
 # ==============================================================================
-# 4. PEER-TO-PEER MESH ROUTER (OFFLINE-FIRST)
+# 4. PEER-TO-PEER MESH ROUTER (OFFLINE-FIRST, HARDENED)
 # ==============================================================================
+
+STANDALONE_MAX_PAYLOAD_BYTES = 1_048_576
+STANDALONE_MAX_CLOCK_SKEW_SEC = 60.0
+_STANDALONE_SAFE_ENV_ALLOWLIST = {
+    "PATH",
+    "SYSTEMROOT",
+    "TEMP",
+    "TMP",
+    "PYTHONPATH",
+    "LANG",
+    "LC_ALL",
+    "USERPROFILE",
+    "HOME",
+    "WINDIR",
+    "COMSPEC",
+    "SHELL",
+    "TERM",
+    "NUMBER_OF_PROCESSORS",
+    "OS",
+    "PROCESSOR_ARCHITECTURE",
+}
+_STANDALONE_SENSITIVE_PAT = re.compile(r".*(?:KEY|TOKEN|SECRET|AUTH|PASS|PASSWORD|CREDENTIAL|PRIVATE).*", re.IGNORECASE)
+
+
+def _sanitized_standalone_env() -> dict[str, str]:
+    clean: dict[str, str] = {}
+    for k, v in os.environ.items():
+        if k.upper() in _STANDALONE_SAFE_ENV_ALLOWLIST and not _STANDALONE_SENSITIVE_PAT.match(k):
+            clean[k] = v
+    clean["PYTHONDONTWRITEBYTECODE"] = "1"
+    return clean
+
+
+def _safe_resolve_standalone_path(sandbox_root: Path, rel_path: str) -> Path:
+    raw = str(rel_path).strip()
+    if not raw or "\x00" in raw:
+        raise PermissionError("Path traversal blocked: empty or null-byte path.")
+    root = sandbox_root.resolve(strict=False)
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        resolved = candidate.resolve(strict=False)
+    else:
+        resolved = (root / candidate).resolve(strict=False)
+    if resolved != root and root not in resolved.parents:
+        raise PermissionError(f"Path traversal escape denied: '{rel_path}' escapes '{root}'")
+    return resolved
+
+
+class StandaloneNonceTracker:
+    """Thread-safe sliding-window nonce replay detector."""
+
+    def __init__(self, window_ttl_sec: float = STANDALONE_MAX_CLOCK_SKEW_SEC, max_entries: int = 100_000) -> None:
+        self.window_ttl_sec = float(window_ttl_sec)
+        self.max_entries = int(max_entries)
+        self._seen: collections.OrderedDict[str, float] = collections.OrderedDict()
+        self._lock = threading.Lock()
+
+    def validate_and_record(self, nonce: str, timestamp: float | None = None) -> tuple[bool, str]:
+        if not nonce:
+            return False, "INVALID_NONCE_FORMAT"
+        now = time.time()
+        ts = float(timestamp) if timestamp is not None else now
+        if abs(now - ts) > self.window_ttl_sec:
+            return False, "CLOCK_SKEW_EXCEEDED"
+        with self._lock:
+            if nonce in self._seen:
+                return False, "REPLAY_DETECTED"
+            while len(self._seen) >= self.max_entries:
+                self._seen.popitem(last=False)
+            self._seen[nonce] = ts
+            return True, "OK"
+
+
+class StandaloneRateLimiter:
+    """Sliding-window rate limiter (default 30 requests/minute per IP)."""
+
+    def __init__(self, max_requests: int = 30, window_seconds: float = 60.0) -> None:
+        self.max_requests = int(max_requests)
+        self.window_seconds = float(window_seconds)
+        self._requests: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, peer_id: str) -> bool:
+        now = time.time()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            timestamps = self._requests.setdefault(peer_id, [])
+            valid = [ts for ts in timestamps if ts > cutoff]
+            if len(valid) >= self.max_requests:
+                self._requests[peer_id] = valid
+                return False
+            valid.append(now)
+            self._requests[peer_id] = valid
+            return True
 
 
 class MeshRequestHandler(BaseHTTPRequestHandler):
@@ -602,8 +698,22 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        if status_code in (413, 415):
+            self.send_header("Connection", "close")
+            self.close_connection = True
         self.end_headers()
         self.wfile.write(raw)
+        self.wfile.flush()
+
+    def _discard_excess_body(self, content_length: int, max_drain: int = 4_194_304) -> None:
+        if content_length <= 0 or content_length > max_drain:
+            return
+        remaining = content_length
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 65536))
+            if not chunk:
+                break
+            remaining -= len(chunk)
 
     def do_GET(self) -> None:
         path = self.path.split("?")[0]
@@ -654,15 +764,13 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
     def _handle_write_file(self, payload: dict[str, Any]) -> dict[str, Any]:
         rel_path = str(payload.get("relative_path", "")).strip()
         content = str(payload.get("content", ""))
-        sandbox_id = str(payload.get("sandbox_id", "default_sandbox"))
+        sandbox_id = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(payload.get("sandbox_id", "default_sandbox")))
         if not rel_path:
             raise ValueError("Parameter 'relative_path' is required.")
 
-        base_sandbox = (Path(tempfile.gettempdir()) / "sse_standalone_sandboxes" / f"sb_{sandbox_id}").resolve()
+        base_sandbox = (Path(tempfile.gettempdir()) / "sse_standalone_sandboxes" / f"sb_{sandbox_id}").resolve(strict=False)
         base_sandbox.mkdir(parents=True, exist_ok=True)
-        target = (base_sandbox / rel_path).resolve()
-        if not str(target).startswith(str(base_sandbox)):
-            raise PermissionError(f"Path traversal escape attempt detected: '{rel_path}'")
+        target = _safe_resolve_standalone_path(base_sandbox, rel_path)
 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
@@ -681,35 +789,35 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         project_name = str(payload.get("project_name", f"standalone_build_{int(time.time())}"))
         files = payload.get("files", {})
         test_cmd = payload.get("test_command") or [sys.executable, "-c", "print('Build verified')"]
+        if isinstance(test_cmd, str) or not isinstance(test_cmd, list):
+            raise PermissionError("Subprocess execution requires tokenized argument list (shell=False).")
         timeout_sec = float(payload.get("timeout_sec", 30.0))
 
         with tempfile.TemporaryDirectory(prefix=f"build_{project_name}_") as tmp_dir:
-            tmp_path = Path(tmp_dir).resolve()
+            tmp_path = Path(tmp_dir).resolve(strict=False)
             if isinstance(files, list):
                 for f_entry in files:
                     p = f_entry.get("path") or f_entry.get("relative_path")
                     c = f_entry.get("content", "")
                     if p:
-                        target = (tmp_path / p).resolve()
-                        if not str(target).startswith(str(tmp_path)):
-                            raise PermissionError(f"Path traversal rejected: '{p}'")
+                        target = _safe_resolve_standalone_path(tmp_path, str(p))
                         target.parent.mkdir(parents=True, exist_ok=True)
-                        target.write_text(c, encoding="utf-8")
+                        target.write_text(str(c), encoding="utf-8")
             elif isinstance(files, dict):
                 for p, c in files.items():
-                    target = (tmp_path / p).resolve()
-                    if not str(target).startswith(str(tmp_path)):
-                        raise PermissionError(f"Path traversal rejected: '{p}'")
+                    target = _safe_resolve_standalone_path(tmp_path, str(p))
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_text(c, encoding="utf-8")
+                    target.write_text(str(c), encoding="utf-8")
 
             t0 = time.time()
             try:
                 proc = subprocess.run(
-                    test_cmd,
+                    [str(arg) for arg in test_cmd],
                     cwd=str(tmp_path),
                     capture_output=True,
                     text=True,
+                    env=_sanitized_standalone_env(),
+                    shell=False,
                     timeout=timeout_sec,
                     check=False,
                 )
@@ -737,16 +845,92 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     "timed_out": True,
                 }
 
+    def _read_bounded_body(self, content_length: int) -> bytes | None:
+        if content_length <= 0:
+            return b"{}"
+        chunks: list[bytes] = []
+        remaining = content_length
+        total_read = 0
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 65536))
+            if not chunk:
+                break
+            total_read += len(chunk)
+            if total_read > STANDALONE_MAX_PAYLOAD_BYTES:
+                return None
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     def do_POST(self) -> None:
         path = self.path.split("?")[0]
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except (ValueError, TypeError):
+            self._send_json(400, {"error": "INVALID_CONTENT_LENGTH"})
+            return
+
+        if content_length < 0:
+            self._send_json(400, {"error": "INVALID_CONTENT_LENGTH"})
+            return
+
+        if content_length > STANDALONE_MAX_PAYLOAD_BYTES:
+            self._discard_excess_body(content_length)
+            self._send_json(
+                413,
+                {"error": f"PAYLOAD_TOO_LARGE: exceeds {STANDALONE_MAX_PAYLOAD_BYTES} bytes"},
+            )
+            return
+
+        content_type = self.headers.get("Content-Type", "") or self.headers.get("content-type", "")
+        if not content_type or "application/json" not in content_type.lower():
+            self._discard_excess_body(content_length)
+            self._send_json(
+                415,
+                {"error": f"INVALID_CONTENT_TYPE: Expected 'application/json', got '{content_type or 'MISSING'}'"},
+            )
+            return
+
+        client_ip = self.client_address[0] if hasattr(self, "client_address") else "127.0.0.1"
+        if not self.server.rate_limiter.allow(client_ip):
+            self._send_json(429, {"error": "RATE_LIMIT_EXCEEDED"})
+            return
+
+        body = self._read_bounded_body(content_length)
+        if body is None or len(body) > STANDALONE_MAX_PAYLOAD_BYTES:
+            self._send_json(413, {"error": "PAYLOAD_TOO_LARGE"})
+            return
 
         try:
             payload = json.loads(body.decode("utf-8")) if body else {}
-        except json.JSONDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             self._send_json(400, {"error": "Invalid JSON payload"})
             return
+
+        if not isinstance(payload, dict):
+            self._send_json(400, {"error": "INVALID_PAYLOAD_STRUCTURE"})
+            return
+
+        ts_val = payload.get("timestamp")
+        ts_float: float | None = None
+        if ts_val is not None:
+            try:
+                ts_float = float(ts_val)
+            except (ValueError, TypeError):
+                self._send_json(400, {"error": "MALFORMED_TIMESTAMP"})
+                return
+            if abs(time.time() - ts_float) > STANDALONE_MAX_CLOCK_SKEW_SEC:
+                self._send_json(401, {"error": "CLOCK_SKEW_EXCEEDED"})
+                return
+
+        if "nonce" in payload and payload["nonce"] is not None:
+            ok_nonce, nonce_reason = self.server.nonce_tracker.validate_and_record(
+                str(payload["nonce"]),
+                timestamp=ts_float,
+            )
+            if not ok_nonce:
+                self._send_json(401, {"error": f"REPLAY_DETECTED: {nonce_reason}"})
+                return
 
         if path == "/mesh/dispatch":
             # Verify signed frame if signature provided
@@ -761,8 +945,8 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     self._send_json(401, {"error": "INVALID_SIGNATURE", "reason": "HMAC signature mismatch"})
                     return
 
-                if abs(time.time() - frame.timestamp) > 300.0:
-                    self._send_json(400, {"error": "EXPIRED_FRAME", "reason": "Frame timestamp outside drift window"})
+                if abs(time.time() - frame.timestamp) > STANDALONE_MAX_CLOCK_SKEW_SEC:
+                    self._send_json(401, {"error": "EXPIRED_FRAME", "reason": "Frame timestamp outside drift window"})
                     return
 
                 action = frame.action
@@ -950,7 +1134,7 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
 
 
 class MeshServer(ThreadingHTTPServer):
-    """Server holding references to sovereign core and ledger."""
+    """Server holding references to sovereign core, ledger, rate limiter, and nonce tracker."""
 
     def __init__(
         self,
@@ -960,11 +1144,15 @@ class MeshServer(ThreadingHTTPServer):
         mode: str,
         core: SovereignDecisionCore,
         ledger: SovereignLedger,
+        rate_limiter: StandaloneRateLimiter | None = None,
+        nonce_tracker: StandaloneNonceTracker | None = None,
     ) -> None:
         self.node_id = node_id
         self.mode = mode
         self.core = core
         self.ledger = ledger
+        self.rate_limiter = rate_limiter or StandaloneRateLimiter(max_requests=30, window_seconds=60.0)
+        self.nonce_tracker = nonce_tracker or StandaloneNonceTracker(window_ttl_sec=STANDALONE_MAX_CLOCK_SKEW_SEC)
         self.daemon_threads = True
         super().__init__(server_address, RequestHandlerClass)
 
@@ -989,7 +1177,18 @@ class P2PRouter:
         self._server: MeshServer | None = None
         self._thread: threading.Thread | None = None
 
-    def start_server(self, host: str = "0.0.0.0", background: bool = True) -> MeshServer:
+    def start_server(
+        self,
+        host: str = "127.0.0.1",
+        background: bool = True,
+        allow_external: bool = False,
+    ) -> MeshServer:
+        is_loopback = host in ("127.0.0.1", "localhost", "::1")
+        if not is_loopback and not allow_external and os.getenv("SSE_ALLOW_EXTERNAL_BIND") != "1":
+            raise PermissionError(
+                f"Binding to non-loopback host '{host}' is disabled by default. "
+                "Pass allow_external=True or set SSE_ALLOW_EXTERNAL_BIND=1 explicitly."
+            )
         server_address = (host, self.port)
         self._server = MeshServer(
             server_address=server_address,
@@ -1208,7 +1407,8 @@ def main() -> int:
     run_parser = subparsers.add_parser("run", help="Launch sovereign P2P router server")
     run_parser.add_argument("--role", "-r", type=str, default="MOBILE", help="Node role")
     run_parser.add_argument("--port", "-p", type=int, default=8203, help="Port to listen on")
-    run_parser.add_argument("--host", type=str, default="0.0.0.0", help="Host interface")
+    run_parser.add_argument("--host", type=str, default="127.0.0.1", help="Host interface (loopback default)")
+    run_parser.add_argument("--allow-external", action="store_true", default=False, help="Allow non-loopback binding")
     run_parser.add_argument("--solo", action="store_true", default=False, help="Solo mode")
 
     # Sync
@@ -1281,7 +1481,7 @@ def main() -> int:
         print(f"Launching sovereign daemon [{args.role.upper()}] on {args.host}:{args.port} (Mode: {mode_str})...")
         router = P2PRouter(node_id=args.role.upper(), port=args.port, mode=mode_str)
         try:
-            router.start_server(host=args.host, background=False)
+            router.start_server(host=args.host, background=False, allow_external=args.allow_external)
         except KeyboardInterrupt:
             print("\nShutting down sovereign daemon.")
             router.stop_server()

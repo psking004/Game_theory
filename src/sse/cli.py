@@ -773,7 +773,7 @@ app.add_typer(worker_app, name="worker")
 
 @worker_app.command("run")
 def worker_run_cmd(
-    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host address to bind to"),
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host address to bind to (loopback default)"),
     port: int = typer.Option(8220, "--port", "-p", help="Port to listen on"),
 ) -> None:
     """Launch the PC-B distributed execution worker service."""
@@ -796,7 +796,8 @@ def node_run_cmd(
     role: str = typer.Option("PC_A", "--role", "-r", help="Node identity: PC_A, PC_B, or MOBILE"),
     port: int | None = typer.Option(None, "--port", "-p", help="Port to listen on (defaults: 8201/8202/8203)"),
     solo: bool = typer.Option(False, "--solo", help="Operate in air-gapped solo mode without mesh routing"),
-    host: str = typer.Option("0.0.0.0", "--host", help="Host address to bind to"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host address to bind to (loopback default)"),
+    allow_external: bool = typer.Option(False, "--allow-external", help="Permit binding to non-loopback interfaces"),
 ) -> None:
     """Launch the sovereign node P2P router daemon."""
     from sse.tri_node.router import DEFAULT_NODE_PORTS, P2PRouter
@@ -809,7 +810,7 @@ def node_run_cmd(
     )
     router = P2PRouter(node_id=role.upper(), port=chosen_port, mode=mode_str)
     try:
-        router.start_server(host=host, background=False)
+        router.start_server(host=host, background=False, allow_external=allow_external)
     except KeyboardInterrupt:
         console.print("[dim]Stopping sovereign node server...[/dim]")
         router.stop_server()

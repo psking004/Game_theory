@@ -177,7 +177,7 @@ def create_worker_app(cluster_secret: str = DEFAULT_CLUSTER_SECRET) -> FastAPI:
 app = create_worker_app()
 
 
-def run_worker(host: str = "0.0.0.0", port: int = 8220) -> None:
+def run_worker(host: str = "127.0.0.1", port: int = 8220) -> None:
     """Entrypoint to launch the PC-B Uvicorn worker daemon."""
     import uvicorn
 

@@ -226,4 +226,21 @@
     - 4 comprehensive integration tests covering Voice Intent EVPI, Mobile Quorum Signer Daemon, Distributed Swarm Arena Pipeline, and Headless Secret Enrollment.
     - Full regression test suite: 208 passed out of 208 tests (100% green), 0 ruff errors.
     - Memory profile: Peak heap RAM 0.12 MB ($< 80.0$ MB ceiling).
+- **Milestone 27 (Codebase Security Audit, In-Memory Zeroization, P2P Wire Hardening & Sandbox Remediation):**
+  * **Static Credential Audit & In-Memory Zeroization (`src/sse/swarm/security_audit_scanner.py` & `src/aiva/security/vault.py`):**
+    - Implemented `StaticSecretScanner` scanning `.py`, `.json`, `.jsonl`, config files, and fixtures for AWS/GitHub/GCP/Slack/API tokens, PEM private keys, credentialed URIs, and high-entropy hex/base64 literals with strict `vault://<category>/<service>/<key>` handle compliance.
+    - Added `zeroize_buffer(buf: bytearray)` overwriting sensitive mutable `bytearray` payloads with `0x00` bytes; refactored `SecureCredentialVault` (`resolve_handle`, `scoped_secret`, `save`, `load`, `delete_secret`, `clear`) and `HeadlessBrowserSupervisor.fill_secure_field` to zeroize mutable buffers immediately after cryptographic operations or DOM injection.
+    - Implemented module-level `redact_secrets`, `VaultRedactingFilter`, `VaultRedactingFormatter`, and `install_global_redaction` for automated log/traceback redaction across active vault instances.
+  * **P2P Wire Protocol & Endpoint Hardening (`src/sse/tri_node/firewall.py`, `src/sse/tri_node/router.py`, `sse_standalone.py`, `src/sse/cli.py`, `src/sse/distributed/worker_service.py`):**
+    - Enforced streamed request body capping (1 MB / `1_048_576` bytes ceiling) with bounded draining and immediate HTTP 413 rejection prior to JSON deserialization.
+    - Enforced explicit `Content-Type: application/json` requirement across all data-carrying endpoints (`/mesh/dispatch`, `/mesh/quorum/*`, `/mesh/arena`, etc.) returning HTTP 415 on missing or mismatched MIME headers.
+    - Changed default server bindings from `0.0.0.0` to loopback `127.0.0.1` across routers, worker service, standalone daemon, and CLI (`--allow-external` / `allow_external=True` / `SSE_ALLOW_EXTERNAL_BIND=1` required for non-loopback binding).
+    - Configured 30 requests/minute per-IP rate limiting (HTTP 429) paired with `NonceTracker` replay deduplication and bidirectional $\le 60.0\text{s}$ timestamp drift checks.
+  * **Workspace Sandbox & Privilege Scrubber Hardening (`src/sse/swarm/security_sandbox.py`, `src/sse/swarm/worktree_sandbox.py`, `src/sse/swarm/agents/runtime.py`, `src/sse/tri_node/router.py`):**
+    - Hardened `SandboxedWorkspaceGuard.resolve_safe_path` using canonical `Path.resolve(strict=False)`, ancestor symlink and Windows NTFS directory junction inspection, strict `sandbox_root in parents` boundary verification, null-byte rejection, and fixed `/mesh/arena` and `_restore_snapshot` writes to route exclusively through `SandboxedWorkspaceGuard`.
+    - Enforced tokenized `shell=False` subprocess execution, host credential scrubbing (`get_sanitized_environment` allowlist), timeouts, and 100 KB capture bounds across `HardenedProcessExecutor`, `RuntimeSupervisorAgent`, `GitWorktreeSandbox`, and `sse_standalone.py`.
+  * **Comprehensive Security Audit Suite (`tests/test_security/test_comprehensive_hardening.py`):**
+    - 5 automated tests verifying HTTP 413/415/429/loopback binding, relative/absolute/symlink/NTFS-junction path-traversal blocks, nonce replay and $\pm 60\text{s}$ drift rejection, static secret scanning + `bytearray` zeroization + log redaction, and subprocess environment isolation.
+    - Overall Test Suite: 213 passed out of 213 tests (100% green), 0 ruff lint errors, `sse doctor` Peak Heap RAM 0.12 MB.
+
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 import threading
 import time
@@ -18,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from sse.swarm.security_sandbox import SandboxedWorkspaceGuard
 from sse.tri_node.firewall import MeshPayloadFirewall
 from sse.tri_node.frame import TriNodeFrame
 from sse.tri_node.ledger import SovereignLedger
@@ -61,8 +63,23 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        if status_code in (413, 415):
+            self.send_header("Connection", "close")
+            self.close_connection = True
         self.end_headers()
         self.wfile.write(raw)
+        self.wfile.flush()
+
+    def _discard_excess_body(self, content_length: int, max_drain: int = 4_194_304) -> None:
+        """Drain bounded incoming request bytes in a 64 KB buffer so clients receive HTTP 413/415 cleanly."""
+        if content_length <= 0 or content_length > max_drain:
+            return
+        remaining = content_length
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 65536))
+            if not chunk:
+                break
+            remaining -= len(chunk)
 
     def do_GET(self) -> None:
         """Route GET requests for health, telemetry, and ledger records."""
@@ -96,24 +113,72 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         else:
             self._send_json(404, {"error": "Endpoint not found"})
 
+    def _read_bounded_body(self, content_length: int, max_bytes: int) -> bytes | None:
+        """Read request body using streamed bounding before JSON parsing."""
+        if content_length <= 0:
+            return b"{}"
+        chunks: list[bytes] = []
+        remaining = content_length
+        total_read = 0
+        while remaining > 0:
+            chunk_size = min(remaining, 65536)
+            chunk = self.rfile.read(chunk_size)
+            if not chunk:
+                break
+            total_read += len(chunk)
+            if total_read > max_bytes:
+                return None
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     def do_POST(self) -> None:
         """Route POST requests for mutual compute dispatch and ledger synchronization."""
         path = self.path.split("?")[0]
-        content_length = int(self.headers.get("Content-Length", 0))
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except (ValueError, TypeError):
+            self._send_json(400, {"error": "INVALID_CONTENT_LENGTH: Header must be an integer"})
+            return
 
-        # Enforce header and size validation via firewall
+        # Enforce header and size validation via firewall BEFORE reading body stream
         valid_hdr, err_hdr = self.server.firewall.validate_headers(self.headers, content_length)
         if not valid_hdr:
-            status_code = 413 if "PAYLOAD_TOO_LARGE" in err_hdr else 415
+            if "PAYLOAD_TOO_LARGE" in err_hdr:
+                status_code = 413
+            elif "INVALID_CONTENT_TYPE" in err_hdr:
+                status_code = 415
+            else:
+                status_code = 400
+            self._discard_excess_body(content_length)
             self._send_json(status_code, {"error": err_hdr})
             return
 
-        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        max_bytes = self.server.firewall.config.max_payload_bytes
+        body = self._read_bounded_body(content_length, max_bytes)
+        if body is None:
+            self._send_json(
+                413,
+                {"error": f"PAYLOAD_TOO_LARGE: Streamed body exceeded ceiling of {max_bytes} bytes"},
+            )
+            return
+
         client_ip = self.client_address[0] if hasattr(self, "client_address") else "127.0.0.1"
 
         valid_payload, payload, reason = self.server.firewall.validate_payload(body, peer_ip=client_ip)
         if not valid_payload:
-            status_code = 429 if "RATE_LIMIT" in reason else 400
+            if "PAYLOAD_TOO_LARGE" in reason:
+                status_code = 413
+            elif "RATE_LIMIT" in reason:
+                status_code = 429
+            elif "REPLAY_DETECTED" in reason:
+                status_code = 401
+            elif "UNRECOGNIZED_NODE_ID" in reason:
+                status_code = 403
+            elif "CLOCK_SKEW_EXCEEDED" in reason:
+                status_code = 401
+            else:
+                status_code = 400
             self._send_json(status_code, {"error": reason})
             return
 
@@ -135,9 +200,10 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                     )
                     return
 
-                if abs(time.time() - frame.timestamp) > 300.0:
+                max_skew = self.server.firewall.config.max_clock_skew_sec
+                if abs(time.time() - frame.timestamp) > max_skew:
                     self._send_json(
-                        400,
+                        401,
                         {"error": "EXPIRED_FRAME", "reason": "Frame timestamp outside valid drift window"},
                     )
                     return
@@ -183,19 +249,16 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
 
                     with tempfile.TemporaryDirectory(prefix="mesh_arena_") as tmp_dir:
                         tmp_path = Path(tmp_dir)
+                        arena_guard = SandboxedWorkspaceGuard(tmp_path)
                         if isinstance(files, dict):
                             for rel_path, content in files.items():
-                                target = tmp_path / rel_path
-                                target.parent.mkdir(parents=True, exist_ok=True)
-                                target.write_text(content, encoding="utf-8")
+                                arena_guard.safe_write(str(rel_path), str(content))
                         elif isinstance(files, list):
                             for f_entry in files:
                                 p = f_entry.get("path") or f_entry.get("relative_path")
                                 c = f_entry.get("content", "")
                                 if p:
-                                    target = tmp_path / p
-                                    target.parent.mkdir(parents=True, exist_ok=True)
-                                    target.write_text(c, encoding="utf-8")
+                                    arena_guard.safe_write(str(p), str(c))
 
                         from sse.swarm.arena import SwarmArena
 
@@ -219,6 +282,8 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                         }
                         status_code = 200 if summary.passed_gate else 422
                         self._send_json(status_code, res_data)
+                except PermissionError as pe:
+                    self._send_json(403, {"error": "SANDBOX_ESCAPE_REJECTED", "details": str(pe)})
                 except Exception as exc:
                     self._send_json(500, {"error": "ARENA_TOURNAMENT_FAILED", "details": str(exc)})
                 return
@@ -344,37 +409,46 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
             rounds = int(payload.get("rounds", 10))
             files = payload.get("files", {})
 
-            with tempfile.TemporaryDirectory(prefix="mesh_arena_") as tmp_dir:
-                tmp_path = Path(tmp_dir)
-                for rel_path, content in files.items():
-                    target = tmp_path / rel_path
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_text(content, encoding="utf-8")
+            try:
+                with tempfile.TemporaryDirectory(prefix="mesh_arena_") as tmp_dir:
+                    tmp_path = Path(tmp_dir)
+                    arena_guard = SandboxedWorkspaceGuard(tmp_path)
+                    if isinstance(files, dict):
+                        for rel_path, content in files.items():
+                            arena_guard.safe_write(str(rel_path), str(content))
+                    elif isinstance(files, list):
+                        for f_entry in files:
+                            p = f_entry.get("path") or f_entry.get("relative_path")
+                            c = f_entry.get("content", "")
+                            if p:
+                                arena_guard.safe_write(str(p), str(c))
 
-                from sse.swarm.arena import SwarmArena
+                    from sse.swarm.arena import SwarmArena
 
-                arena = SwarmArena(baseline_elo=1400.0)
-                summary = arena.run_tournament(tmp_path, candidate_id=candidate_id, rounds=rounds)
+                    arena = SwarmArena(baseline_elo=1400.0)
+                    summary = arena.run_tournament(tmp_path, candidate_id=candidate_id, rounds=rounds)
 
-                self._send_json(
-                    200,
-                    {
-                        "status": "COMPLETED",
-                        "candidate_id": summary.candidate_id,
-                        "rounds": summary.rounds_played,
-                        "wins": summary.wins,
-                        "losses": summary.losses,
-                        "draws": summary.draws,
-                        "survival_rate": summary.survival_rate,
-                        "initial_elo": summary.initial_elo,
-                        "final_elo": summary.final_elo,
-                        "elo_delta": summary.elo_delta,
-                        "passed_gate": summary.passed_gate,
-                        "worst_case_regret": summary.worst_case_regret,
-                        "compact_payload": summary.to_compact_payload(),
-                        "node_id": self.server.node_id,
-                    },
-                )
+                    self._send_json(
+                        200,
+                        {
+                            "status": "COMPLETED",
+                            "candidate_id": summary.candidate_id,
+                            "rounds": summary.rounds_played,
+                            "wins": summary.wins,
+                            "losses": summary.losses,
+                            "draws": summary.draws,
+                            "survival_rate": summary.survival_rate,
+                            "initial_elo": summary.initial_elo,
+                            "final_elo": summary.final_elo,
+                            "elo_delta": summary.elo_delta,
+                            "passed_gate": summary.passed_gate,
+                            "worst_case_regret": summary.worst_case_regret,
+                            "compact_payload": summary.to_compact_payload(),
+                            "node_id": self.server.node_id,
+                        },
+                    )
+            except PermissionError as pe:
+                self._send_json(403, {"error": "SANDBOX_ESCAPE_REJECTED", "details": str(pe)})
 
         elif path == "/mesh/quorum/challenge":
             from aiva.governance.mobile_signer import MobileQuorumSignerDaemon
@@ -460,8 +534,19 @@ class P2PRouter:
         self._server: MeshServer | None = None
         self._thread: threading.Thread | None = None
 
-    def start_server(self, host: str = "0.0.0.0", background: bool = True) -> MeshServer:
-        """Start the mesh HTTP server daemon."""
+    def start_server(
+        self,
+        host: str = "127.0.0.1",
+        background: bool = True,
+        allow_external: bool = False,
+    ) -> MeshServer:
+        """Start the mesh HTTP server daemon (loopback-only by default)."""
+        is_loopback = host in ("127.0.0.1", "localhost", "::1")
+        if not is_loopback and not allow_external and os.getenv("SSE_ALLOW_EXTERNAL_BIND") != "1":
+            raise PermissionError(
+                f"Binding to non-loopback host '{host}' is disabled by default. "
+                "Pass allow_external=True or set SSE_ALLOW_EXTERNAL_BIND=1 explicitly."
+            )
         server_address = (host, self.port)
         self._server = MeshServer(
             server_address=server_address,
